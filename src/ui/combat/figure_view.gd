@@ -11,6 +11,7 @@ var dead := false
 var back_row := false
 var _flash := 0.0
 var _shake := 0.0
+var _shake_t := 0.0
 var _t := 0.0
 
 
@@ -22,6 +23,7 @@ func _ready() -> void:
 func hit(amount: int) -> void:
 	_flash = 1.0
 	_shake = clampf(amount / 6.0, 0.35, 1.0)
+	_shake_t = 0.0
 
 
 func center_global() -> Vector2:
@@ -32,14 +34,19 @@ func _process(delta: float) -> void:
 	_t += delta
 	_flash = move_toward(_flash, 0.0, delta * 2.5)
 	_shake = move_toward(_shake, 0.0, delta * 2.0)
+	_shake_t += delta
 	queue_redraw()
 
 
 func _draw() -> void:
 	var s := 0.78 if back_row else 1.0
 	var bob := Vector2(0, sin(_t * 1.6) * 4.0) if not dead else Vector2.ZERO
-	var jolt := Vector2(randf_range(-1, 1), randf_range(-1, 1)) * _shake * 10.0
-	var c := size * 0.5 + bob + jolt
+	# Damped sway + squash on hit (smooth, no random jitter).
+	var sway := Vector2(sin(_shake_t * 30.0) * _shake * 9.0, 0)
+	var squash := 1.0 + sin(_shake_t * 22.0) * _shake * 0.12
+	var c := size * 0.5 + bob + sway
+	draw_set_transform(c, 0.0, Vector2(1.0 / squash, squash))
+	c = Vector2.ZERO
 	var r := minf(size.x, size.y) * 0.42 * s
 	var col := color.lerp(Color.WHITE, _flash * 0.8)
 	if dead:

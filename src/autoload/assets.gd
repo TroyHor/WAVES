@@ -30,19 +30,22 @@ const FONTS := {
 const FALLBACK_MONO_NAMES := ["Menlo", "Consolas", "DejaVu Sans Mono", "Courier New"]
 const FALLBACK_CJK_NAMES := ["Hiragino Sans GB", "Heiti SC", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", "WenQuanYi Micro Hei"]
 
-## CRT post-process parameters (src/ui/crt/crt.gdshader). The input remap in
-## main.gd reads `curvature` so clicks land where the distorted image shows.
-const CRT := {
-	"curvature": 0.045,
-	"scanline_strength": 0.22,
-	"scanline_density": 540.0,
-	"aberration": 1.0,
+## Whole-screen finishing pass (src/ui/crt/screen_fx.gdshader). Calm by design:
+## bloom, faint fringe, grain, vignette. Impacts add a smooth ripple + shake.
+const SCREEN_FX := {
+	"curvature": 0.0,
+	"bloom": 0.35,
+	"aberration": 0.5,
+	"vignette": 0.22,
+	"grain": 0.018,
+}
+
+## CRT tube inside each bench oscilloscope (src/ui/crt/tube.gdshader).
+const TUBE := {
+	"curvature": 0.05,
+	"scanline_strength": 0.16,
+	"glow": 0.5,
 	"vignette": 0.35,
-	"noise_strength": 0.045,
-	"bloom": 0.45,
-	"flicker": 0.02,
-	"wobble": 0.0008,
-	"ambient_glitch": 0.25,
 }
 
 const SOUNDS := {
@@ -71,6 +74,12 @@ const COLORS := {
 	"cancelled": Color("9fb8ad"),
 	"energy": Color("ffd23f"),
 	"disabled": Color("2a4a3a"),
+	# Bench oscilloscope case.
+	"case": Color("1a201c"),
+	"case_edge": Color("39463e"),
+	"bezel": Color("0c110e"),
+	"knob": Color("2b332e"),
+	"plate": Color("c9bf9a"),
 }
 
 

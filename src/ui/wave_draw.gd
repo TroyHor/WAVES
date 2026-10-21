@@ -23,6 +23,31 @@ static func smooth_points(values: PackedInt32Array, from: int, to: int, x_of: Ca
 	return pts
 
 
+## Straight segments between samples (the bench scopes' "折线" look).
+static func line_points(values: PackedInt32Array, from: int, to: int, x_of: Callable, y_of: Callable) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for t in range(from, to + 1):
+		pts.append(Vector2(x_of.call(t), y_of.call(float(values[t]))))
+	return pts
+
+
+## Bright pulses travelling along a trace, so the wave visibly "flows".
+## `phase` is time in seconds; values along the curve are never altered.
+static func pulses(ci: CanvasItem, pts: PackedVector2Array, color: Color, width: float, phase: float, count := 2, speed := 0.25) -> void:
+	if pts.size() < 4:
+		return
+	var n := pts.size()
+	var span := maxi(6, n / 10)
+	for k in count:
+		var head := int(fposmod(phase * speed + float(k) / count, 1.0) * (n + span)) - span
+		for i in span:
+			var a := head + i
+			if a < 0 or a + 1 >= n:
+				continue
+			var w := float(i) / span
+			ci.draw_line(pts[a], pts[a + 1], Color(color, color.a * w * 0.9), width * (1.0 + w * 1.4), true)
+
+
 ## Glowing trace. `jitter` adds per-point noise (used during collisions).
 static func trace(ci: CanvasItem, pts: PackedVector2Array, color: Color, width: float, dashed := false, jitter := 0.0) -> void:
 	if pts.size() < 2:

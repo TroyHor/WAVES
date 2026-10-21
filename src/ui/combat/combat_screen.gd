@@ -2,16 +2,23 @@ extends Control
 ## Combat screen. Owns no rules: every number shown comes from Combat.preview()
 ## or Combat.resolve_turn().
 ##
-## Layout (top to bottom): enemy figures/HP, enemy scope, collision strip,
-## player scope, then player figure / hand / resolve. The three wave bands share
-## the same cell columns so a card's cells line up with the enemy's.
+## Layout (top to bottom): enemy bench scope, merged centre panel, player bench
+## scope, hand. A left column holds the enemy figure(s) beside the enemy scope,
+## the preview totals + resolve beside the centre, and the player beside the
+## player scope. All three wave panels share the same cell columns.
 ##
 ## Controls: drag a card onto the scopes; right-click / R flips flippable cards;
 ## drag a placed wave off the scopes to take it back; Enter/Space resolves.
 
+const BACKGROUND_SHADER := preload("res://src/ui/crt/background.gdshader")
 const LAUNCH_SECONDS := 0.45
-const IMPACT_SECONDS := 0.5
+const IMPACT_SECONDS := 0.6
 const SHOT_SECONDS := 0.5
+const LEFT_COL := 300.0
+const RIGHT_MARGIN := 24.0
+## Grid inset inside each wave panel (name plate on the left, knobs on the right).
+const GRID_INSET_L := 150.0
+const GRID_INSET_R := 120.0
 
 var app: Node
 var combat: Combat
@@ -22,9 +29,9 @@ var demo := false
 var run: RunState
 var tutorial_enabled := true
 
-var _enemy_scope: ScopeView
-var _player_scope: ScopeView
-var _strip: CollisionStrip
+var _enemy_scope: OscilloscopeView
+var _player_scope: OscilloscopeView
+var _merged: MergedView
 var _fx: FxLayer
 var _hand_root: Control
 var _card_views: Array[CardView] = []
@@ -34,6 +41,7 @@ var _player_hp: HpBar
 var _enemy_views := {}
 var _to_enemy_label: Label
 var _to_player_label: Label
+var _turn_label: Label
 var _energy_label: Label
 var _pile_label: Label
 var _hint_label: Label
@@ -59,28 +67,27 @@ var _animating := false
 
 func _ready() -> void:
 	var bg := ColorRect.new()
-	bg.color = Assets.color("background")
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var bg_mat := ShaderMaterial.new()
+	bg_mat.shader = BACKGROUND_SHADER
+	bg.material = bg_mat
 	add_child(bg)
 
-	_enemy_scope = _make_scope(1.0)
-	_strip = CollisionStrip.new()
-	_strip.track_length = combat.rules.track_length
-	_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_strip)
-	_player_scope = _make_scope(-1.0)
+	_enemy_scope = _make_scope("敌方信号", Assets.color("enemy_ch1"), 1.0)
+	_merged = MergedView.new()
+	_merged.track_length = combat.rules.track_length
+	_merged.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_merged)
+	_player_scope = _make_scope("我方信号", Assets.color("player_wave"), -1.0)
 
 	for e in combat.enemies:
 		var fig := FigureView.new()
 		fig.shape = e.data.figure_shape
 		fig.color = Assets.color(e.data.color_id)
 		fig.texture = Assets.texture(e.data.texture_id) if e.data.texture_id != "" else null
-		fig.size = Vector2(160, 160)
 		add_child(fig)
 		var panel := EnemyPanel.new()
-		panel.size = Vector2(420, 118)
-		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(panel)
 		_enemy_views[e] = {"figure": fig, "panel": panel}
 
@@ -88,7 +95,7 @@ func _ready() -> void:
 	_player_figure.shape = "player"
 	_player_figure.color = Assets.color("player_wave")
 	_player_figure.texture = Assets.texture("player")
-	_player_figure.size = Vector2(190, 170)
+	_player_figure.size = Vector2(130, 110)
 	add_child(_player_figure)
 
 	_player_hp = HpBar.new()
@@ -99,14 +106,16 @@ func _ready() -> void:
 
 	_to_enemy_label = _make_label(30, Assets.color("damage_to_enemy"))
 	_to_player_label = _make_label(30, Assets.color("damage_to_player"))
-	_energy_label = _make_label(26, Assets.color("energy"))
-	_pile_label = _make_label(16, Assets.color("text_dim"))
-	_hint_label = _make_label(16, Assets.color("text_dim"))
-	_hint_label.text = "拖动卡牌到示波器 · 右键/R 反相 · 把已放置的波拖出示波器可撤回 · Enter 结算 · F2 切换 CRT"
+	_turn_label = _make_label(18, Assets.color("text_dim"))
+	_energy_label = _make_label(24, Assets.color("energy"))
+	_pile_label = _make_label(15, Assets.color("text_dim"))
+	_hint_label = _make_label(14, Assets.color("text_dim"))
+	_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hint_label.text = "拖动卡牌到示波器\n右键 / R 反相\n拖出示波器可撤回\nEnter 结算 · F2 关闭画面特效"
 
 	_resolve_btn = Button.new()
 	_resolve_btn.text = "结算  ⏎"
-	_resolve_btn.add_theme_font_size_override("font_size", 30)
+	_resolve_btn.add_theme_font_size_override("font_size", 28)
 	_resolve_btn.pressed.connect(_resolve)
 	add_child(_resolve_btn)
 
@@ -135,11 +144,12 @@ func _ready() -> void:
 	refresh()
 
 
-func _make_scope(dir: float) -> ScopeView:
-	var s := ScopeView.new()
-	s.track_length = combat.rules.track_length
-	s.launch_dir = dir
-	s.mouse_filter = Control.MOUSE_FILTER_IGNORE
+func _make_scope(title: String, accent: Color, dir: float) -> OscilloscopeView:
+	var s := OscilloscopeView.new()
+	s.title = title
+	s.accent = accent
+	s.screen.track_length = combat.rules.track_length
+	s.screen.launch_dir = dir
 	add_child(s)
 	return s
 
@@ -158,61 +168,81 @@ func _make_label(font_size: int, color: Color) -> Label:
 func _layout() -> void:
 	var w := size.x
 	var h := size.y
-	var side := 60.0
-	var scope_w := w - side * 2
-	_enemy_scope.position = Vector2(side, 190)
-	_enemy_scope.size = Vector2(scope_w, 212)
-	_strip.position = Vector2(side, 404)
-	_strip.size = Vector2(scope_w, 96)
-	_player_scope.position = Vector2(side, 502)
-	_player_scope.size = Vector2(scope_w, 212)
+	var x := LEFT_COL
+	var pw := w - LEFT_COL - RIGHT_MARGIN
+	var gx0 := GRID_INSET_L
+	var gx1 := pw - GRID_INSET_R
+	_enemy_scope.position = Vector2(x, 10)
+	_enemy_scope.size = Vector2(pw, 190)
+	_merged.position = Vector2(x, 208)
+	_merged.size = Vector2(pw, 430)
+	_player_scope.position = Vector2(x, 646)
+	_player_scope.size = Vector2(pw, 190)
+	for s in [_enemy_scope, _player_scope]:
+		s.grid_x0 = gx0
+		s.grid_x1 = gx1
+		s.layout_tube()
+	_merged.grid_x0 = gx0
+	_merged.grid_x1 = gx1
 
 	_layout_enemies(false)
 
-	var bottom := 728.0
-	_player_figure.position = Vector2(56, bottom + 4)
-	_player_hp.position = Vector2(40, bottom + 182)
-	_player_hp.size = Vector2(270, 52)
-	_energy_label.position = Vector2(40, bottom + 244)
-	_hand_root.position = Vector2(0, h - CardView.CARD_SIZE.y - 40)
+	# Centre-left column: preview totals and the resolve button.
+	_to_enemy_label.position = Vector2(24, 232)
+	_to_player_label.position = Vector2(24, 280)
+	_turn_label.position = Vector2(24, 336)
+	_hint_label.position = Vector2(24, 400)
+	_hint_label.size = Vector2(LEFT_COL - 40, 120)
+	_resolve_btn.position = Vector2(24, 548)
+	_resolve_btn.size = Vector2(LEFT_COL - 48, 80)
+
+	# Player column beside the player scope.
+	_player_figure.position = Vector2(20, 652)
+	_player_hp.position = Vector2(20, 766)
+	_player_hp.size = Vector2(LEFT_COL - 44, 46)
+	_energy_label.position = Vector2(150, 690)
+
+	_hand_root.position = Vector2(0, h - CardView.CARD_SIZE.y - 14)
 	_hand_root.size = Vector2(w, CardView.CARD_SIZE.y)
-	_to_enemy_label.position = Vector2(w - 330, bottom + 12)
-	_to_player_label.position = Vector2(w - 330, bottom + 56)
-	_resolve_btn.position = Vector2(w - 300, bottom + 120)
-	_resolve_btn.size = Vector2(240, 72)
-	_menu_btn.position = Vector2(w - 160, h - 64)
-	_pile_label.position = Vector2(w - 640, h - 30)
-	_hint_label.position = Vector2(330, h - 30)
-	_toast.position = Vector2(0, _strip.position.y + 20)
-	_toast.size = Vector2(w, 60)
+	_menu_btn.position = Vector2(w - 120, h - 56)
+	_menu_btn.size = Vector2(96, 44)
+	_pile_label.position = Vector2(20, h - 30)
+	_toast.position = Vector2(LEFT_COL, _merged.position.y + 60)
+	_toast.size = Vector2(pw, 60)
 	_layout_hand()
 
 
-## Front enemy takes the first slot; with `animate` the figures glide (swap).
+## Enemy column beside the enemy scope; the twins stack vertically, front on
+## top. With `animate` the figures glide into their new slots (swap).
 func _layout_enemies(animate: bool) -> void:
 	var n := combat.enemies.size()
-	var group_w := 600.0
-	var gap := 80.0
-	var total := n * group_w + (n - 1) * gap
 	var tw: Tween = create_tween().set_parallel(true) if animate else null
 	for i in n:
 		var e := combat.enemies[i]
 		var v: Dictionary = _enemy_views[e]
-		var x := (size.x - total) * 0.5 + i * (group_w + gap)
-		var fig_pos := Vector2(x, 14)
-		var panel_pos := Vector2(x + 175, 26)
-		if tw != null:
-			tw.tween_property(v["figure"], "position", fig_pos, 0.5).set_trans(Tween.TRANS_BACK)
-			tw.tween_property(v["panel"], "position", panel_pos, 0.5).set_trans(Tween.TRANS_BACK)
+		var fig_rect: Rect2
+		var panel_rect: Rect2
+		if n == 1:
+			fig_rect = Rect2(LEFT_COL * 0.5 - 60, 6, 120, 104)
+			panel_rect = Rect2(20, 108, LEFT_COL - 44, 90)
 		else:
-			v["figure"].position = fig_pos
-			v["panel"].position = panel_pos
+			var y := 10.0 + i * 96.0
+			fig_rect = Rect2(12, y, 86, 86)
+			panel_rect = Rect2(102, y + 2, LEFT_COL - 126, 88)
+		v["figure"].size = fig_rect.size
+		v["panel"].size = panel_rect.size
+		if tw != null:
+			tw.tween_property(v["figure"], "position", fig_rect.position, 0.5).set_trans(Tween.TRANS_BACK)
+			tw.tween_property(v["panel"], "position", panel_rect.position, 0.5).set_trans(Tween.TRANS_BACK)
+		else:
+			v["figure"].position = fig_rect.position
+			v["panel"].position = panel_rect.position
 
 
 func _layout_hand() -> void:
 	var gap := 14.0
 	var total := _card_views.size() * CardView.CARD_SIZE.x + maxf(0, _card_views.size() - 1) * gap
-	var x := (size.x - total) * 0.5
+	var x := LEFT_COL + (size.x - LEFT_COL - total) * 0.5
 	for v in _card_views:
 		v.position = Vector2(x, 0)
 		x += CardView.CARD_SIZE.x + gap
@@ -223,7 +253,7 @@ func anchor_rect(anchor: String) -> Rect2:
 	match anchor:
 		"enemy_scope": return _enemy_scope.get_rect()
 		"player_scope": return _player_scope.get_rect()
-		"collision": return _strip.get_rect()
+		"collision": return _merged.get_rect()
 		"resolve": return _resolve_btn.get_rect()
 		"player_figure": return _player_figure.get_rect().merge(_player_hp.get_rect())
 		"energy": return _energy_label.get_rect()
@@ -275,60 +305,65 @@ func _refresh_preview() -> void:
 	var result := combat.preview(extra)
 	var enemy_track := combat.enemy_track()
 
-	# Shared vertical scale for both scopes.
+	# Shared vertical scale for both bench scopes.
 	var amp := 10.0
 	for v in enemy_track:
 		amp = maxf(amp, absf(v))
 	for v in result.player:
 		amp = maxf(amp, absf(v))
-	_enemy_scope.amp_scale = amp
-	_player_scope.amp_scale = amp
+	var es := _enemy_scope.screen
+	var ps := _player_scope.screen
+	es.amp_scale = amp
+	ps.amp_scale = amp
 
 	var echans: Array = []
-	var legend: Array = []
+	var merged_enemy: Array = []
 	var alive := combat.alive_enemies()
 	for i in alive.size():
 		var e := alive[i]
 		var col := Assets.color(e.data.color_id)
 		echans.append({"track": e.intent, "color": col, "width": 2.6})
-		legend.append(["CH%d %s" % [1 if i == 0 else 3, e.data.name], col])
+		merged_enemy.append({"track": e.intent, "color": col, "label": e.data.name})
 	if alive.size() > 1:
 		echans.append({"track": enemy_track, "color": Color(Assets.color("net_wave"), 0.5), "width": 1.6, "dashed": true})
-		legend.append(["Σ 合成", Color(Assets.color("net_wave"), 0.6)])
-	_enemy_scope.channels = echans
-	_enemy_scope.legend = legend
-	_enemy_scope.info = "T%02d   敌方信号" % combat.turn
-	_enemy_scope.tint_track = enemy_track
-	_enemy_scope.tint_color = Assets.color("enemy_ch1")
+	es.channels = echans
+	es.tint_track = enemy_track
+	es.tint_color = Assets.color("enemy_ch1")
 
 	var pchans: Array = []
 	# Dashed guide: the wave that would cancel the enemy exactly.
 	pchans.append({"track": WaveMath.invert(enemy_track), "color": Color(Assets.color("player_wave"), 0.3), "width": 1.4, "dashed": true})
-	var count := 0
+	var parts: Array = []
 	for p in combat.played:
-		pchans.append_array(_wave_entries(p, p.card == _hover_card))
-		count += 1
+		parts.append_array(_wave_entries(p, p.card == _hover_card))
 	if extra != null:
-		pchans.append_array(_wave_entries(extra, true))
-		count += 1
-	if count > 1:
-		pchans.append({"track": result.player, "color": Assets.color("player_wave"), "width": 3.4})
-	_player_scope.channels = pchans
-	_player_scope.legend = [["CH2 玩家", Assets.color("player_wave")], ["- - 完美抵消", Color(Assets.color("player_wave"), 0.5)]]
-	_player_scope.info = "我方信号"
-	_player_scope.tint_track = enemy_track
-	_player_scope.tint_color = Assets.color("enemy_ch1")
+		parts.append_array(_wave_entries(extra, true))
+	pchans.append_array(parts)
+	if parts.size() > 1:
+		pchans.append({"track": result.player, "color": Assets.color("player_wave"), "width": 3.2})
+	ps.channels = pchans
+	ps.tint_track = enemy_track
+	ps.tint_color = Assets.color("enemy_ch1")
 
-	_strip.result = result
-	_strip.reveal = 1.0
-	for s in [_enemy_scope, _player_scope, _strip]:
-		s.highlight_cell = _hover_cell
+	_merged.enemy_channels = merged_enemy
+	_merged.enemy_sum = enemy_track
+	_merged.player_parts = parts
+	_merged.result = result
+	_merged.reveal = 1.0
+	_merged.arrive = 1.0
+	_merged.merge = 0.0
+	es.highlight_cell = _hover_cell
+	ps.highlight_cell = _hover_cell
+	_merged.highlight_cell = _hover_cell
 
 	_player_hp.set_values(combat.player_hp, combat.player_max_hp, result.to_player)
 	_update_enemy_panels(result.to_enemy)
 	_to_enemy_label.text = "预计对敌  %d" % result.to_enemy
 	_to_player_label.text = "预计受到  %d" % result.to_player
-	_energy_label.text = "能量 %s %d/%d" % ["◆".repeat(combat.energy) + "◇".repeat(maxi(0, combat.rules.energy_per_turn - combat.energy)), combat.energy, combat.rules.energy_per_turn]
+	_turn_label.text = "第 %d 回合" % combat.turn
+	if combat.swap_in() > 0:
+		_turn_label.text += "\n%d 回合后双子交换" % combat.swap_in()
+	_energy_label.text = "能量\n%s %d/%d" % ["◆".repeat(combat.energy) + "◇".repeat(maxi(0, combat.rules.energy_per_turn - combat.energy)), combat.energy, combat.rules.energy_per_turn]
 	var where := encounter.name
 	if run != null:
 		where = "第 %d/%d 战 · %s" % [run.index + 1, run.encounter_ids.size(), encounter.name]
@@ -343,7 +378,7 @@ func _wave_entries(p: PlayedCard, emphasis: bool) -> Array:
 	for pl in p.placements():
 		var track := WaveMath.place(pl.wave, pl.offset, combat.rules.track_length, combat.rules.offtrack_mode)
 		out.append({"track": track, "color": col if emphasis else Color(col, 0.7), "width": 3.0 if emphasis else 2.0,
-			"from": pl.offset - 1, "to": pl.offset + pl.wave.size()})
+			"from": pl.offset - 1, "to": pl.offset + pl.wave.size(), "emphasis": emphasis})
 	return out
 
 
@@ -427,14 +462,14 @@ func _start_drag(card: CardInstance, grab: int, flipped: bool) -> void:
 	refresh()
 
 
-## The enemy scope, strip and player scope together form the drop area.
+## Both bench scopes and the merged panel together form the drop area.
 func _over_scopes(mouse: Vector2) -> bool:
 	var r := _enemy_scope.get_global_rect().merge(_player_scope.get_global_rect())
 	return r.grow(10).has_point(mouse)
 
 
 func _cell_at(mouse: Vector2) -> int:
-	return _player_scope.cell_at(mouse - _player_scope.global_position)
+	return _merged.cell_at(mouse - _merged.global_position)
 
 
 func _update_drag(mouse: Vector2) -> void:
@@ -553,23 +588,28 @@ func _resolve() -> void:
 		v.queue_redraw()
 	_player_hp.set_values(shown_player_hp, combat.player_max_hp, 0)
 
-	# 1. Both scopes fire their waves toward the collision strip.
-	_strip.result = r
-	_strip.reveal = 0.0
+	# 1. Both bench scopes fire their waves into the merged panel.
+	_merged.result = r
+	_merged.arrive = 0.0
+	_merged.reveal = 0.0
+	_merged.merge = 0.0
 	var tw := create_tween().set_parallel(true)
-	tw.tween_property(_enemy_scope, "launch", 1.0, LAUNCH_SECONDS).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	tw.tween_property(_player_scope, "launch", 1.0, LAUNCH_SECONDS).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(_enemy_scope.screen, "launch", 1.0, LAUNCH_SECONDS).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(_player_scope.screen, "launch", 1.0, LAUNCH_SECONDS).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(_merged, "arrive", 1.0, LAUNCH_SECONDS + 0.1).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT).set_delay(0.1)
 	await tw.finished
 
-	# 2. Impact: flash, sparks where waves cancelled, CRT glitch burst.
-	_strip.burst()
-	_strip.reveal = 1.0
-	app.glitch(0.45 + 0.03 * r.perfect_cancels)
-	var tw2 := create_tween()
-	tw2.tween_property(_strip, "impact", 0.0, IMPACT_SECONDS)
-	await get_tree().create_timer(0.25).timeout
+	# 2. Impact: soft rings where waves cancel, a smooth screen ripple, and
+	#    the result bars / numbers pop in left to right.
+	_merged.impact = 1.0
+	app.impact(_merged.global_position + _merged.size * 0.5, 0.35 + 0.04 * r.perfect_cancels)
+	var tw2 := create_tween().set_parallel(true)
+	tw2.tween_property(_merged, "impact", 0.0, IMPACT_SECONDS)
+	tw2.tween_property(_merged, "reveal", 1.0, IMPACT_SECONDS)
+	tw2.tween_property(_merged, "merge", 1.0, 0.4)
+	await tw2.finished
 
-	# 3. Residual waves fly to their targets.
+	# 3. Residual waves fly from the readout to their targets.
 	var target_fig: FigureView = _enemy_views[report.target]["figure"]
 	var delay := 0.0
 	for t in r.damage.size():
@@ -577,7 +617,7 @@ func _resolve() -> void:
 		if dmg <= 0:
 			continue
 		var to_enemy := r.outcome[t] != TrackResult.Outcome.PLAYER_HIT
-		var from := _strip.cell_global(t, to_enemy)
+		var from := _merged.cell_global(t, to_enemy)
 		var to := target_fig.center_global() if to_enemy else _player_figure.center_global()
 		var col := Assets.color("damage_to_enemy") if to_enemy else Assets.color("damage_to_player")
 		_fx.shoot(from, to, col, delay, SHOT_SECONDS, 5.0 + dmg * 0.8)
@@ -590,14 +630,14 @@ func _resolve() -> void:
 	if r.to_player > 0:
 		_player_figure.hit(r.to_player)
 		_fx.float_text(_player_figure.center_global(), "-%d" % r.to_player, Assets.color("damage_to_player"))
-		app.glitch(clampf(0.3 + r.to_player * 0.05, 0.3, 0.9))
+		app.impact(_player_figure.center_global(), clampf(0.2 + r.to_player * 0.03, 0.2, 0.6))
 	_player_hp.set_values(combat.player_hp, combat.player_max_hp, 0)
 	_update_enemy_panels(0)
 	await get_tree().create_timer(0.45).timeout
 
 	# 4. Reset for the next turn.
-	_enemy_scope.launch = 0.0
-	_player_scope.launch = 0.0
+	_enemy_scope.screen.launch = 0.0
+	_player_scope.screen.launch = 0.0
 	if report.swapped:
 		_layout_enemies(true)
 	var msgs := PackedStringArray()

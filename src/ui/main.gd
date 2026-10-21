@@ -1,16 +1,18 @@
 extends Control
-## App root. The game renders into a SubViewport which is shown through the CRT
-## shader; mouse input is remapped through the same barrel distortion so clicks
-## land on what the player sees. Also routes between screens.
+## App root. The game renders into a SubViewport which is shown through the
+## screen FX shader (bloom, grain, vignette, impact ripples). Mouse input is
+## remapped through the same transform (curvature + shake offset) so clicks land
+## on what the player sees. Also routes between screens.
 ##
 ## Dev flags (after `--`): --encounter=ID --seed=N --demo --nocrt --shot=PATH
 ##   --notutorial  disable tutorial hints
+##   --freshprogress  use an empty, unsaved tutorial progress (screenshots)
 ##   --runfight  start a new run and jump into its first fight
 ##   --autoresolve  (with --demo) resolve the turn shortly after start
 ##   --shotframes=N  frames to wait before --shot (default 45)
 ##   --selftest  runs tests/ui_smoke.gd through the real input path and quits
 
-const CRT_SHADER := preload("res://src/ui/crt/crt.gdshader")
+const FX_SHADER := preload("res://src/ui/crt/screen_fx.gdshader")
 const MenuScreen := preload("res://src/ui/menu_screen.gd")
 const CombatScreen := preload("res://src/ui/combat/combat_screen.gd")
 const RunMapScreen := preload("res://src/ui/run_map_screen.gd")
@@ -28,15 +30,17 @@ var _crt_material: ShaderMaterial
 var _crt_enabled := true
 var _screen: Control
 var _args := {}
-var _glitch := 0.0
+var _shake := 0.0
+var _shake_t := 0.0
+var _ripple_t := -1.0
 
 
 func _ready() -> void:
 	_args = _parse_args()
 	db = GameDatabase.load_default()
 	rules = RulesConfig.load_file()
-	theme_res = ThemeFactory.build()
-	progress = Progress.load_from(Platform.save_path(Progress.FILE))
+	theme_res = ThemeFactory.shared()
+	progress = Progress.new() if _args.has("freshprogress") else Progress.load_from(Platform.save_path(Progress.FILE))
 	tutorial_enabled = not (_args.has("notutorial") or _args.has("selftest"))
 
 	_viewport = SubViewport.new()
@@ -45,9 +49,9 @@ func _ready() -> void:
 	add_child(_viewport)
 
 	_crt_material = ShaderMaterial.new()
-	_crt_material.shader = CRT_SHADER
-	for key in Assets.CRT:
-		_crt_material.set_shader_parameter(key, Assets.CRT[key])
+	_crt_material.shader = FX_SHADER
+	for key in Assets.SCREEN_FX:
+		_crt_material.set_shader_parameter(key, Assets.SCREEN_FX[key])
 
 	_display = TextureRect.new()
 	_display.texture = _viewport.get_texture()
@@ -121,14 +125,30 @@ func _show_combat(combat: Combat, encounter_id: String, seed_value: int) -> void
 	_set_screen(screen)
 
 
-## Triggers a transient CRT glitch burst (0..1), decaying over ~0.5 s.
-func glitch(amount: float) -> void:
-	_glitch = maxf(_glitch, clampf(amount, 0.0, 1.0))
+## Impact feedback at a game-space position: a smooth shockwave ripple plus a
+## short damped shake (strength 0..1).
+func impact(game_pos: Vector2, strength: float) -> void:
+	strength = clampf(strength, 0.0, 1.0)
+	_ripple_t = 0.0
+	_crt_material.set_shader_parameter("ripple_center", game_pos / size)
+	_crt_material.set_shader_parameter("ripple_strength", strength)
+	_shake = maxf(_shake, strength)
+	_shake_t = 0.0
 
 
 func _process(delta: float) -> void:
-	_glitch = move_toward(_glitch, 0.0, delta * 2.0)
-	_crt_material.set_shader_parameter("glitch", _glitch)
+	if _ripple_t >= 0.0:
+		_ripple_t += delta
+		if _ripple_t > 1.0:
+			_ripple_t = -1.0
+		_crt_material.set_shader_parameter("ripple_t", _ripple_t)
+	if _shake > 0.0:
+		_shake_t += delta
+		_shake = move_toward(_shake, 0.0, delta * 2.5)
+		# Damped sine sway, not random jitter.
+		_display.position = Vector2(sin(_shake_t * 38.0), cos(_shake_t * 31.0) * 0.6) * _shake * 7.0
+	else:
+		_display.position = Vector2.ZERO
 
 
 func set_crt_enabled(enabled: bool) -> void:
@@ -157,20 +177,20 @@ func _input(event: InputEvent) -> void:
 		return
 	var ev := event.duplicate()
 	if ev is InputEventMouse:
-		var local: Vector2 = ev.position - global_position
+		var local: Vector2 = ev.position - global_position - _display.position
 		ev.position = _crt_map(local)
 		ev.global_position = ev.position
 	_viewport.push_input(ev, true)
 	get_viewport().set_input_as_handled()
 
 
-## Screen position -> game position. Mirrors barrel() in crt.gdshader: the pixel
-## shown at screen uv is sampled from the game image at barrel(uv).
+## Screen position -> game position. Mirrors barrel() in screen_fx.gdshader:
+## the pixel shown at screen uv is sampled from the game image at barrel(uv).
 func _crt_map(p: Vector2) -> Vector2:
 	if not _crt_enabled or size.x <= 0 or size.y <= 0:
 		return p
 	var c := (p / size) * 2.0 - Vector2.ONE
-	c *= 1.0 + float(Assets.CRT["curvature"]) * c.dot(c)
+	c *= 1.0 + float(Assets.SCREEN_FX["curvature"]) * c.dot(c)
 	return (c * 0.5 + Vector2(0.5, 0.5)) * size
 
 

@@ -48,7 +48,7 @@ func _ready() -> void:
 		row.add_child(b)
 
 	var hint := Label.new()
-	hint.text = "F2 切换 CRT 效果"
+	hint.text = "F2 关闭画面特效"
 	hint.add_theme_color_override("font_color", Assets.color("text_dim"))
 	hint.add_theme_font_size_override("font_size", 16)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

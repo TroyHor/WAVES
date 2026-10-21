@@ -20,8 +20,8 @@ func run(app: Node) -> int:
 	if view == null:
 		return _finish()
 	var card := view.card
-	var scope: ScopeView = screen._player_scope
-	var target := scope.global_position + Vector2(scope.cell_center_x(8), scope.size.y * 0.4)
+	var panel: MergedView = screen._merged
+	var target := panel.global_position + Vector2(panel.cell_center_x(8), panel.size.y * 0.4)
 	await _drag(view.global_position + view.size * 0.5, target)
 	var played := combat.find_played(card)
 	_check(played != null, "card was played by dragging onto the scope")
@@ -32,7 +32,7 @@ func run(app: Node) -> int:
 
 	# 2. Drag the placed wave off the scope (onto the hand area) to take it back.
 	if played != null:
-		var from := scope.global_position + Vector2(scope.cell_center_x(played.offset), scope.size.y * 0.4)
+		var from := panel.global_position + Vector2(panel.cell_center_x(played.offset), panel.size.y * 0.4)
 		await _drag(from, Vector2(screen.size.x * 0.5, screen.size.y - 60))
 		_check(combat.find_played(card) == null, "card taken back off the scope")
 		_check(card in combat.deck.hand, "card returned to hand")

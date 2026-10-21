@@ -4,7 +4,7 @@ extends Control
 
 signal grabbed(view: CardView)
 
-const CARD_SIZE := Vector2(176, 244)
+const CARD_SIZE := Vector2(156, 214)
 
 var card: CardInstance
 var playable := true
@@ -12,6 +12,7 @@ var flipped := false
 ## Ghost = the copy following the mouse while dragging.
 var ghost := false
 var _hovered := false
+var _t := randf() * 10.0
 
 
 func _init(p_card: CardInstance) -> void:
@@ -22,6 +23,7 @@ func _init(p_card: CardInstance) -> void:
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE if ghost else Control.MOUSE_FILTER_STOP
+	pivot_offset = CARD_SIZE * 0.5
 	mouse_entered.connect(func() -> void: _hovered = true; queue_redraw())
 	mouse_exited.connect(func() -> void: _hovered = false; queue_redraw())
 
@@ -32,9 +34,18 @@ func _gui_input(event: InputEvent) -> void:
 		accept_event()
 
 
+## Gentle idle sway; hovering straightens the card and lifts it.
+func _process(delta: float) -> void:
+	_t += delta
+	var target := 0.0 if (_hovered or ghost) else sin(_t * 1.3) * 0.025
+	rotation = lerpf(rotation, target, minf(1.0, delta * 8.0))
+	var s := 1.06 if _hovered and playable and not ghost else 1.0
+	scale = scale.lerp(Vector2(s, s), minf(1.0, delta * 12.0))
+
+
 func _draw() -> void:
 	var font := get_theme_default_font()
-	var lift := -20.0 if _hovered and playable and not ghost else 0.0
+	var lift := -16.0 if _hovered and playable and not ghost else 0.0
 	var accent := Assets.color("player_wave") if playable else Assets.color("disabled")
 	var text := Assets.color("text") if playable else Assets.color("text_dim")
 	var r := Rect2(Vector2(0, lift), CARD_SIZE)
@@ -46,10 +57,10 @@ func _draw() -> void:
 	var badge := Vector2(24, 24 + lift)
 	draw_circle(badge, 17, Assets.color("energy") if playable else Assets.color("disabled"))
 	draw_string(font, badge + Vector2(-17, 8), str(card.data.cost), HORIZONTAL_ALIGNMENT_CENTER, 34, 22, Assets.color("background"))
-	draw_string(font, Vector2(50, 32 + lift), card.data.name, HORIZONTAL_ALIGNMENT_LEFT, 118, 22, text)
+	draw_string(font, Vector2(48, 32 + lift), card.data.name, HORIZONTAL_ALIGNMENT_LEFT, 100, 20, text)
 
 	# Mini scope with the waveform.
-	var sr := Rect2(12, 50 + lift, CARD_SIZE.x - 24, 96)
+	var sr := Rect2(10, 48 + lift, CARD_SIZE.x - 20, 82)
 	draw_rect(sr, Assets.color("screen"))
 	draw_line(Vector2(sr.position.x, sr.get_center().y), Vector2(sr.end.x, sr.get_center().y), Assets.color("grid_major"), 1.0)
 	var wave := card.data.wave
@@ -62,10 +73,10 @@ func _draw() -> void:
 
 	var rules := card.data.rules_text()
 	if rules != "":
-		draw_multiline_string(font, Vector2(12, 172 + lift), rules, HORIZONTAL_ALIGNMENT_LEFT, CARD_SIZE.x - 24, 16, 3, Assets.color("text_dim"))
+		draw_multiline_string(font, Vector2(10, 152 + lift), rules, HORIZONTAL_ALIGNMENT_LEFT, CARD_SIZE.x - 20, 15, 3, Assets.color("text_dim"))
 	if not wave.is_empty():
 		var nums := ",".join(Array(wave).map(func(v: int) -> String: return str(v)))
-		draw_string(font, Vector2(12, CARD_SIZE.y - 12 + lift), "[%s]" % nums, HORIZONTAL_ALIGNMENT_LEFT, CARD_SIZE.x - 24, 14, Color(accent, 0.7))
+		draw_string(font, Vector2(10, CARD_SIZE.y - 10 + lift), "[%s]" % nums, HORIZONTAL_ALIGNMENT_LEFT, CARD_SIZE.x - 20, 13, Color(accent, 0.7))
 
 
 func _draw_mini_wave(wave: PackedInt32Array, sr: Rect2, color: Color) -> void:

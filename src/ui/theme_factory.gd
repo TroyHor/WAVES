@@ -3,6 +3,16 @@ extends RefCounted
 ## Builds the instrument-panel Theme in code (no .tres to hand-edit).
 
 
+static var _shared: Theme
+
+
+## One Theme instance for the whole app (also used inside SubViewports).
+static func shared() -> Theme:
+	if _shared == null:
+		_shared = build()
+	return _shared
+
+
 static func build() -> Theme:
 	var t := Theme.new()
 	t.default_font = Assets.font("main")

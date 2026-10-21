@@ -1,6 +1,7 @@
 class_name EnemyPanel
 extends Control
-## Enemy readout: name, current move, HP, and front/back status for the twins.
+## Compact enemy readout beside its figure: name, current move, HP (with the
+## previewed-damage ghost) and, for the twins, front/back + swap countdown.
 
 var enemy: EnemyState
 var is_front := true
@@ -10,10 +11,18 @@ var _hp: HpBar
 
 
 func _ready() -> void:
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hp = HpBar.new()
+	_hp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_hp)
-	_hp.position = Vector2(16, 56)
-	_hp.size = Vector2(size.x - 32, 52)
+	resized.connect(_place_bar)
+	_place_bar()
+
+
+func _place_bar() -> void:
+	if _hp != null:
+		_hp.position = Vector2(0, size.y - 46)
+		_hp.size = Vector2(size.x, 46)
 
 
 func update_view(p_enemy: EnemyState, p_front: bool, p_multi: bool, p_swap_in: int, preview_loss: int) -> void:
@@ -33,19 +42,13 @@ func _draw() -> void:
 	var font := get_theme_default_font()
 	var col := Assets.color(enemy.data.color_id)
 	var alive := enemy.is_alive()
-	var border := col if (is_front and alive) else Assets.color("disabled")
-	draw_rect(Rect2(Vector2.ZERO, size), Assets.color("panel"))
-	draw_rect(Rect2(Vector2.ZERO, size), border, false, 3.0 if is_front else 2.0)
-	draw_rect(Rect2(16, 14, 14, 24), col if alive else Assets.color("disabled"))
-	draw_string(font, Vector2(40, 36), enemy.data.name, HORIZONTAL_ALIGNMENT_LEFT, -1, 26, col if alive else Assets.color("text_dim"))
-	var status := ""
-	if not alive:
-		status = "已击破"
-	elif enemy.move != null:
-		status = "意图：%s" % enemy.move.name
-	draw_string(font, Vector2(size.x - 236, 34), status, HORIZONTAL_ALIGNMENT_RIGHT, 220, 20, Assets.color("text"))
+	draw_string(font, Vector2(0, 20), enemy.data.name, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, col if alive else Assets.color("text_dim"))
+	var intent := "已击破"
+	if alive and enemy.move != null:
+		intent = "意图：%s" % enemy.move.name
+	draw_string(font, Vector2(0, 20), intent, HORIZONTAL_ALIGNMENT_RIGHT, size.x, 15, Assets.color("text") if is_front or not multi else Assets.color("text_dim"))
 	if multi and alive:
-		var tag := "▶ 前排 · 承受伤害" if is_front else "后排 · 无法攻击"
-		draw_string(font, Vector2(16, size.y + 24), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, col if is_front else Assets.color("text_dim"))
-		if swap_in > 0:
-			draw_string(font, Vector2(size.x - 236, size.y + 24), "%d 回合后交换" % swap_in, HORIZONTAL_ALIGNMENT_RIGHT, 220, 18, Assets.color("text_dim"))
+		var tag := "▶ 前排" if is_front else "后排 · 无法攻击"
+		if is_front and swap_in > 0:
+			tag += " · %d 回合后交换" % swap_in
+		draw_string(font, Vector2(0, 38), tag, HORIZONTAL_ALIGNMENT_LEFT, size.x, 13, col if is_front else Assets.color("text_dim"))
