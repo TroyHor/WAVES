@@ -1,0 +1,141 @@
+{
+	"hints": [
+		{
+			"id": "intro_enemy",
+			"anchor": "enemy_scope",
+			"trigger": {
+				"encounter": "01_drone",
+				"turn": 1,
+				"run_index": 0
+			},
+			"text": "上方的示波器显示敌人本回合要发出的攻击波。每一列是一个时间格，波峰为正、波谷为负。"
+		},
+		{
+			"id": "intro_player",
+			"after": "intro_enemy",
+			"anchor": "player_scope",
+			"trigger": {
+				"encounter": "01_drone",
+				"turn": 1,
+				"run_index": 0
+			},
+			"text": "下方是你的示波器。结算时，两边的波会在中间相撞，同一列的振幅相加。虚线是“刚好抵消敌人”所需的波形。"
+		},
+		{
+			"id": "intro_drag",
+			"after": "intro_player",
+			"anchor": "hand",
+			"complete": "card_played",
+			"trigger": {
+				"encounter": "01_drone",
+				"turn": 1,
+				"run_index": 0
+			},
+			"text": "把一张手牌拖到示波器上，左右移动选择位置，松手放下。（试试看）"
+		},
+		{
+			"id": "intro_collision",
+			"after": "intro_drag",
+			"anchor": "collision",
+			"trigger": {
+				"encounter": "01_drone",
+				"played_at_least": 1
+			},
+			"text": "中间是碰撞预演：绿色数字会打到敌人，红色数字会打到你，“=”表示完美抵消。\n用反相的波压住敌人的波来防御，把波打进敌人没有波的列来进攻。"
+		},
+		{
+			"id": "intro_takeback",
+			"after": "intro_collision",
+			"anchor": "player_scope",
+			"trigger": {
+				"encounter": "01_drone",
+				"played_at_least": 1
+			},
+			"text": "放下的波可以再抓起来移动；拖出示波器就能撤回并返还能量。结算前随意调整。"
+		},
+		{
+			"id": "intro_resolve",
+			"after": "intro_takeback",
+			"anchor": "resolve",
+			"complete": "resolve",
+			"trigger": {
+				"encounter": "01_drone",
+				"played_at_least": 1
+			},
+			"text": "满意后按“结算”或 Enter，两道波就会碰撞。"
+		},
+		{
+			"id": "intro_hp",
+			"after": "intro_resolve",
+			"anchor": "player_figure",
+			"trigger": {
+				"encounter": "01_drone",
+				"turn": 2
+			},
+			"text": "你的血量在整局中延续，打完一场不会回满。能防住的伤害尽量防住。"
+		},
+		{
+			"id": "feat_overflow",
+			"after": "intro_resolve",
+			"anchor": "collision",
+			"trigger": {
+				"preview_outcome": "overflow"
+			},
+			"text": "过量反相：你的反相波比敌人的波更强时，抵消后剩下的部分会反打敌人。防守和进攻可以同时完成。"
+		},
+		{
+			"id": "feat_draw",
+			"after": "intro_resolve",
+			"anchor": "hand",
+			"trigger": {
+				"hand_effect": "draw"
+			},
+			"text": "「调谐」没有波形：把它拖到手牌区上方松开即可打出，立刻抽 2 张牌。"
+		},
+		{
+			"id": "feat_flip",
+			"after": "intro_resolve",
+			"anchor": "hand",
+			"trigger": {
+				"hand_keyword": "flippable"
+			},
+			"text": "「双极」可以反相：拖动时按右键或 R 翻转正负；已经放下的也可以右键翻转。"
+		},
+		{
+			"id": "feat_echo",
+			"after": "intro_resolve",
+			"anchor": "hand",
+			"trigger": {
+				"hand_effect": "echo"
+			},
+			"text": "「回声」会在后面几格再放一份相同的波。小心副本和你的其他波互相抵消。"
+		},
+		{
+			"id": "enc_shrieker",
+			"anchor": "enemy_scope",
+			"trigger": {
+				"encounter": "02_shrieker",
+				"turn": 1
+			},
+			"text": "尖啸者发出又高又窄的尖峰，正负随机。用符号相反的波对准它，或者干脆避开它攻击空隙。"
+		},
+		{
+			"id": "enc_tide",
+			"anchor": "enemy_figure",
+			"trigger": {
+				"encounter": "03_tide_colossus",
+				"forced_next": true
+			},
+			"text": "潮汐巨像正在“蓄潮”：下一回合必定是覆盖大半条波轨的“大潮”。趁现在进攻，并考虑留好反相牌。"
+		},
+		{
+			"id": "enc_twins",
+			"anchor": "enemy_figure",
+			"trigger": {
+				"multi_enemy": true,
+				"turn": 1
+			},
+			"text": "干涉双子：两只的波会先互相叠加再攻击你。你只能伤害前排那只，每 2 回合它们交换前后。\n两只攻击方式不同——想先杀哪只，就趁它在前排时集中火力。"
+		}
+	]
+}

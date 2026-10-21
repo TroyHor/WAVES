@@ -37,5 +37,9 @@
 				}
 			]
 		}
-	]
+	],
+	"figure": {
+		"shape": "crest",
+		"texture": "enemy_twin_crest"
+	}
 }

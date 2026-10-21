@@ -7,6 +7,10 @@ var name := ""
 var max_hp := 30
 ## Assets color id used to draw this enemy's channel on the scope.
 var color_id := "enemy_ch1"
+## Placeholder figure drawn in code until real art exists (see FigureView).
+var figure_shape := "orb"
+## Assets texture id for the final portrait; falls back to figure_shape.
+var texture_id := ""
 var moves: Array[EnemyMove] = []
 
 
@@ -16,6 +20,9 @@ static func from_dict(d: Dictionary, errors: PackedStringArray) -> EnemyData:
 	e.name = str(d.get("name", e.id))
 	e.max_hp = int(d.get("hp", 30))
 	e.color_id = str(d.get("color", e.color_id))
+	var fig: Dictionary = d.get("figure", {})
+	e.figure_shape = str(fig.get("shape", e.figure_shape))
+	e.texture_id = str(fig.get("texture", ""))
 	for m in d.get("moves", []):
 		e.moves.append(EnemyMove.from_dict(m, e.id, errors))
 	if e.id == "":

@@ -32,5 +32,9 @@
 				}
 			]
 		}
-	]
+	],
+	"figure": {
+		"shape": "trough",
+		"texture": "enemy_twin_trough"
+	}
 }

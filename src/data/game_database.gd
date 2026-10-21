@@ -7,11 +7,17 @@ const CARD_DIR := "res://data/cards/"
 const ENEMY_DIR := "res://data/enemies/"
 const ENCOUNTER_DIR := "res://data/encounters/"
 const STARTER_DECK_PATH := "res://data/config/starter_deck.json"
+const RUN_PATH := "res://data/config/run.json"
+const HINTS_PATH := "res://data/tutorial/hints.json"
 
 var cards := {}       ## id -> CardData
 var enemies := {}     ## id -> EnemyData
 var encounters := {}  ## id -> EncounterData
 var starter_deck := PackedStringArray()
+## Encounter ids of the linear run, in order.
+var run_order := PackedStringArray()
+## Tutorial hint definitions (see TutorialRules).
+var hints: Array[Dictionary] = []
 var errors := PackedStringArray()
 
 
@@ -30,6 +36,15 @@ static func load_default() -> GameDatabase:
 	if starter is Dictionary:
 		for id in starter.get("cards", []):
 			db.starter_deck.append(str(id))
+	var run = _read_json(RUN_PATH, db.errors)
+	if run is Dictionary:
+		for id in run.get("encounters", []):
+			db.run_order.append(str(id))
+	var hint_data = _read_json(HINTS_PATH, db.errors)
+	if hint_data is Dictionary:
+		for h in hint_data.get("hints", []):
+			if h is Dictionary:
+				db.hints.append(h)
 	db._validate_refs()
 	for e in db.errors:
 		push_error("GameDatabase: " + e)
@@ -83,6 +98,12 @@ func _validate_refs() -> void:
 	for id in starter_deck:
 		if not cards.has(id):
 			errors.append("starter deck: unknown card '%s'" % id)
+	if run_order.is_empty():
+		errors.append("run order is empty")
+	for id in run_order:
+		if not encounters.has(id):
+			errors.append("run: unknown encounter '%s'" % id)
+	errors.append_array(TutorialRules.validate(hints))
 	for enc in encounters.values():
 		for id in enc.enemy_ids:
 			if not enemies.has(id):

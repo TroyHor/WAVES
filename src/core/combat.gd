@@ -35,9 +35,9 @@ func _init(p_rules: RulesConfig, cards: Array[CardData], enemy_defs: Array[Enemy
 	swap_countdown = swap_interval
 
 
-static func from_encounter(db: GameDatabase, encounter_id: String, seed_value: int, p_rules: RulesConfig) -> Combat:
+static func from_encounter(db: GameDatabase, encounter_id: String, seed_value: int, p_rules: RulesConfig, starting_hp := -1) -> Combat:
 	var enc := db.encounter(encounter_id)
-	return Combat.new(p_rules, db.starter_cards(), db.encounter_enemies(enc), seed_value, enc.swap_interval)
+	return Combat.new(p_rules, db.starter_cards(), db.encounter_enemies(enc), seed_value, enc.swap_interval, starting_hp)
 
 
 func start() -> void:

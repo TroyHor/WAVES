@@ -61,5 +61,9 @@
 				}
 			]
 		}
-	]
+	],
+	"figure": {
+		"shape": "colossus",
+		"texture": "enemy_tide_colossus"
+	}
 }

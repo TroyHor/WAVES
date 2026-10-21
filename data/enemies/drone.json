@@ -52,5 +52,9 @@
 				}
 			]
 		}
-	]
+	],
+	"figure": {
+		"shape": "orb",
+		"texture": "enemy_drone"
+	}
 }

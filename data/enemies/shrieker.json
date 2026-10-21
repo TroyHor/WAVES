@@ -37,5 +37,9 @@
 				}
 			]
 		}
-	]
+	],
+	"figure": {
+		"shape": "star",
+		"texture": "enemy_shrieker"
+	}
 }
