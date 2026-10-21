@@ -4,15 +4,23 @@ extends Control
 ## land on what the player sees. Also routes between screens.
 ##
 ## Dev flags (after `--`): --encounter=ID --seed=N --demo --nocrt --shot=PATH
+##   --notutorial  disable tutorial hints
+##   --runfight  start a new run and jump into its first fight
+##   --autoresolve  (with --demo) resolve the turn shortly after start
+##   --shotframes=N  frames to wait before --shot (default 45)
 ##   --selftest  runs tests/ui_smoke.gd through the real input path and quits
 
 const CRT_SHADER := preload("res://src/ui/crt/crt.gdshader")
 const MenuScreen := preload("res://src/ui/menu_screen.gd")
 const CombatScreen := preload("res://src/ui/combat/combat_screen.gd")
+const RunMapScreen := preload("res://src/ui/run_map_screen.gd")
 
 var db: GameDatabase
 var rules: RulesConfig
 var theme_res: Theme
+var progress: Progress
+var run: RunState
+var tutorial_enabled := true
 
 var _viewport: SubViewport
 var _display: TextureRect
@@ -20,6 +28,7 @@ var _crt_material: ShaderMaterial
 var _crt_enabled := true
 var _screen: Control
 var _args := {}
+var _glitch := 0.0
 
 
 func _ready() -> void:
@@ -27,6 +36,8 @@ func _ready() -> void:
 	db = GameDatabase.load_default()
 	rules = RulesConfig.load_file()
 	theme_res = ThemeFactory.build()
+	progress = Progress.load_from(Platform.save_path(Progress.FILE))
+	tutorial_enabled = not (_args.has("notutorial") or _args.has("selftest"))
 
 	_viewport = SubViewport.new()
 	_viewport.handle_input_locally = true
@@ -49,12 +60,17 @@ func _ready() -> void:
 	resized.connect(_on_resized)
 	_on_resized()
 
-	if _args.has("encounter"):
+	if _args.has("runfight"):
+		start_run(int(_args.get("seed", randi())))
+		start_run_fight()
+	elif _args.has("encounter"):
 		start_combat(_args["encounter"], int(_args.get("seed", randi())))
 	else:
 		show_menu()
+	if _args.has("autoresolve") and _screen.has_method("demo_resolve"):
+		_screen.demo_resolve.call_deferred()
 	if _args.has("shot"):
-		_take_screenshot_and_quit(_args["shot"])
+		_take_screenshot_and_quit(_args["shot"], int(_args.get("shotframes", 45)))
 	if _args.has("selftest"):
 		var smoke = load("res://tests/ui_smoke.gd").new()
 		get_tree().quit(await smoke.run(self))
@@ -66,14 +82,53 @@ func show_menu() -> void:
 	_set_screen(menu)
 
 
+## Single fight outside a run (testing).
 func start_combat(encounter_id: String, seed_value: int) -> void:
+	run = null
+	_show_combat(Combat.from_encounter(db, encounter_id, seed_value, rules), encounter_id, seed_value)
+
+
+func start_run(seed_value: int) -> void:
+	run = RunState.new_run(db, rules, seed_value)
+	show_run_map()
+
+
+func show_run_map() -> void:
+	var screen := RunMapScreen.new()
+	screen.app = self
+	screen.run = run
+	_set_screen(screen)
+
+
+func start_run_fight() -> void:
+	_show_combat(run.make_combat(db, rules), run.current_encounter_id(), run.seed_value + run.index * 7919)
+
+
+func finish_run_fight(combat: Combat) -> void:
+	run.complete_combat(combat)
+	show_run_map()
+
+
+func _show_combat(combat: Combat, encounter_id: String, seed_value: int) -> void:
 	var screen := CombatScreen.new()
 	screen.app = self
-	screen.combat = Combat.from_encounter(db, encounter_id, seed_value, rules)
+	screen.combat = combat
 	screen.encounter = db.encounter(encounter_id)
 	screen.seed_value = seed_value
+	screen.run = run
+	screen.tutorial_enabled = tutorial_enabled
 	screen.demo = _args.has("demo")
 	_set_screen(screen)
+
+
+## Triggers a transient CRT glitch burst (0..1), decaying over ~0.5 s.
+func glitch(amount: float) -> void:
+	_glitch = maxf(_glitch, clampf(amount, 0.0, 1.0))
+
+
+func _process(delta: float) -> void:
+	_glitch = move_toward(_glitch, 0.0, delta * 2.0)
+	_crt_material.set_shader_parameter("glitch", _glitch)
 
 
 func set_crt_enabled(enabled: bool) -> void:
@@ -132,8 +187,8 @@ func current_screen() -> Control:
 	return _screen
 
 
-func _take_screenshot_and_quit(path: String) -> void:
-	for i in 45:
+func _take_screenshot_and_quit(path: String, frames: int) -> void:
+	for i in frames:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(path)

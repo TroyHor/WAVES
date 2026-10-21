@@ -38,5 +38,5 @@ func _draw() -> void:
 	draw_rect(bar, Assets.color("panel_border"), false, 2.0)
 	var text := "%s  %d/%d" % [label, value, max_value]
 	if preview_loss > 0:
-		text += "   预计 -%d" % preview_loss
+		text += "  -%d" % preview_loss
 	draw_string(font, Vector2(0, 20), text, HORIZONTAL_ALIGNMENT_LEFT, size.x, 20, color)

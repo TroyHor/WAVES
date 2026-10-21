@@ -20,7 +20,7 @@ func run(app: Node) -> int:
 	if view == null:
 		return _finish()
 	var card := view.card
-	var scope: ScopeView = screen._scope
+	var scope: ScopeView = screen._player_scope
 	var target := scope.global_position + Vector2(scope.cell_center_x(8), scope.size.y * 0.4)
 	await _drag(view.global_position + view.size * 0.5, target)
 	var played := combat.find_played(card)
@@ -45,10 +45,24 @@ func run(app: Node) -> int:
 	var expected_hp := enemy.hp - combat.preview().to_enemy
 	var expected_player := combat.player_hp - combat.preview().to_player
 	_key(KEY_ENTER)
-	await _app.get_tree().create_timer(2.0).timeout
+	await _app.get_tree().create_timer(3.0).timeout
 	_check(combat.turn == 2, "turn advanced after resolving (turn=%d)" % combat.turn)
 	_check(enemy.hp == expected_hp, "enemy HP matches the preview (%d == %d)" % [enemy.hp, expected_hp])
 	_check(combat.player_hp == expected_player, "player HP matches the preview")
+
+	# 4. Run flow: run map -> first fight (HP carried) -> back to map after a win.
+	app.start_run(3)
+	await _frames(3)
+	_check(app.current_screen().get("run") != null, "run map shown")
+	app.start_run_fight()
+	await _frames(3)
+	var fight: Control = app.current_screen()
+	_check(fight.run == app.run and fight.encounter.id == app.db.run_order[0], "first run fight started")
+	fight.combat.player_hp = 41
+	fight.combat.outcome = Combat.Outcome.WON
+	app.finish_run_fight(fight.combat)
+	await _frames(3)
+	_check(app.run.index == 1 and app.run.player_hp == 41, "run advanced with HP carried over")
 	return _finish()
 
 

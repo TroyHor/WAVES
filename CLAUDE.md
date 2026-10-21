@@ -23,6 +23,8 @@
 - 拉伸 = 线性插值：长度 n → (n−1)·k + 1，四舍五入远离 0。
 - 结算前已放置的卡可以拖动/撤回并返还能量。同时归零判玩家负。
 - 无基础"格挡"，非位置性防御只来自遗物。
+- 一局（原型）：按 `data/config/run.json` 顺序线性打 4 场，HP 在战斗之间延续；失败即本局结束。
+- 新手引导：`data/tutorial/hints.json` 数据驱动（触发条件 + `after` 链 + 完成方式），每条只出现一次，进度存 `user://progress.json`。
 - 每回合能量 `energy_per_turn` = 3，抽牌 `hand_size` = 5，玩家 HP `player_max_hp` = 60。数值原则：前期低，让玩家自己学会规则。
 - 决定记录与仍待决定的问题见 `docs/design.md` 第 6、7 节。
 
@@ -39,6 +41,8 @@ data/cards/*.json        每张卡一个文件
 data/enemies/*.json      每个敌人一个文件（招式池）
 data/encounters/*.json   每场战斗一个文件（敌人列表、双子交换间隔）
 data/config/starter_deck.json  初始牌组
+data/config/run.json     一局的战斗顺序
+data/tutorial/hints.json 新手引导文案与触发条件
 assets/{art,fonts,audio} 正式素材放这里；路径只在 src/autoload/assets.gd 里登记
 tests/                   无头测试：run_tests.gd（运行器）、test_case.gd（断言基类）、unit/test_*.gd、
                          ui_smoke.gd（UI 冒烟测试）、balance_probe.gd（平衡探针，非测试）
@@ -50,6 +54,11 @@ builds/                  导出产物（git 忽略）
 ## 美术方向
 - **电子示波器 + 老式 CRT 显示屏**：波轨就是示波器屏幕（网格刻度、通道颜色 CH1 琥珀/CH2 青/CH3 品红/MATH 白绿、磷光辉光）。
 - 全屏 CRT 后处理（`src/ui/crt/crt.gdshader`）：桶形畸变（边缘拉伸）、径向色差、磷光泛光、扫描线、滚动亮带、行抖动、噪点、闪烁、暗角。参数集中在 `Assets.CRT`，F2 开关。
+- 故障/花屏：平时偶发轻微撕裂与波动；碰撞和受伤时由 `Main.glitch(amount)` 触发强故障（撕裂、波浪位移、色差、色块）。
+- 波形一律用余弦插值画成平滑曲线（`WaveDraw`）：曲线精确经过每个采样点且不会过冲，不会误导数值。
+- **战斗布局（上下对位）**：上方敌人形象 + 敌方示波器，中间碰撞带，下方我方示波器 + 玩家形象/手牌。双方的波分开显示；三条带共享同一套格子列（`ScopeView.PAD_LEFT/PAD_RIGHT`），同一列上下对齐。我方示波器的虚线是"完美抵消所需波形"。
+- 结算动画：双方波形飞向碰撞带 → 碰撞闪光/火花/故障 → 剩余伤害化为弹道飞向目标形象 → 受击闪烁与伤害数字。
+- 形象：`FigureView` 先用代码绘制的矢量占位（按敌人 JSON 的 `figure.shape`），`figure.texture` 对应的贴图存在时自动替换。
 - 颜色全部来自 `Assets.COLORS`，UI 主题由 `ThemeFactory` 代码生成。
 
 ## 开发规范
@@ -75,7 +84,8 @@ scripts/export.sh [macos|windows|linux|all]   # 无头导出到 builds/（需要
 Godot 可执行文件路径可用环境变量 `GODOT` 覆盖。
 
 开发参数（写在 `--` 之后）：`--encounter=04_twins` 直接进入战斗，`--seed=N`，`--nocrt`，
-`--demo`（自动摆两张牌并模拟拖动第三张，用于截图），`--shot=路径.png`（截图后退出），`--selftest`（UI 冒烟测试）。
+`--demo`（自动摆两张牌并模拟拖动第三张，用于截图），`--autoresolve`（配合 --demo 自动结算，用于截动画），
+`--shot=路径.png` + `--shotframes=N`（第 N 帧截图后退出），`--runfight`（新开一局直接进第一战），`--notutorial`，`--selftest`（UI 冒烟测试）。
 
 ## 技术决策记录
 | 决策 | 理由 |
@@ -91,5 +101,7 @@ Godot 可执行文件路径可用环境变量 `GODOT` 覆盖。
 | UI 全部代码构建（`_draw` + 少量 Control），不手写复杂 .tscn | 无需编辑器即可维护；占位图形以后可逐个替换成贴图。 |
 | 字体：系统等宽字体 + 显式 CJK 回退字体 | 原型阶段零依赖。**上架前必须打包一款开源字体**（如 Noto Sans SC）到 `assets/fonts/main.ttf`，否则玩家机器上字体不可控。macOS 上 PingFang 不可加载，故优先 Hiragino Sans GB。 |
 | 导出预设 `include_filter="data/*.json"` | JSON 不是 Godot 资源，不显式包含就不会进导出包。tests/docs/scripts 不导出。macOS 用内置 ad-hoc 签名，正式上架前再换开发者证书 + 公证。 |
+| 敌我示波器上下排列而非左右 | 波轨是时间轴，上下排列时同一格上下对齐，叠加关系一眼可见；左右排列会让对应格相隔半个屏幕，防御时很难对位。 |
+| 引导规则（`TutorialRules`）是纯函数，UI 只负责构建状态快照和显示 | 可测试；新增引导只改 JSON。 |
 | 敌人意图被随机叠加完全抵消时重新随机 | 保证敌人每回合一定有攻击。 |
 | 每张卡打出后在结算前可撤回（拿起已放置的牌 = unplay） | 拖动只有一种状态，预览统一用"假设打出"的 PlayedCard 计算。抽牌类卡打出即生效，不可撤回。 |

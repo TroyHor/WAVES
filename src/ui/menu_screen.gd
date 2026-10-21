@@ -1,5 +1,5 @@
 extends Control
-## Prototype menu: pick an encounter to test.
+## Title menu: start a run, reset the tutorial, or test a single fight.
 
 var app: Node
 var _t := 0.0
@@ -7,33 +7,50 @@ var _t := 0.0
 
 func _ready() -> void:
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 18)
+	box.add_theme_constant_override("separation", 16)
 	box.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	box.position = Vector2(-260, -40)
+	box.position = Vector2(-260, -20)
 	box.custom_minimum_size = Vector2(520, 0)
 	add_child(box)
 
-	var sub := Label.new()
-	sub.text = "选择一场战斗（原型）"
-	sub.add_theme_color_override("font_color", Assets.color("text_dim"))
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(sub)
+	var start := Button.new()
+	start.text = "开始新的一局  ▶"
+	start.custom_minimum_size = Vector2(520, 76)
+	start.add_theme_font_size_override("font_size", 30)
+	start.pressed.connect(func() -> void: app.start_run(randi()))
+	box.add_child(start)
 
+	var reset := Button.new()
+	reset.text = "重置新手引导"
+	reset.custom_minimum_size = Vector2(520, 52)
+	reset.pressed.connect(func() -> void:
+		app.progress.reset_hints()
+		reset.text = "新手引导已重置")
+	box.add_child(reset)
+
+	var dev := Label.new()
+	dev.text = "— 单场测试 —"
+	dev.add_theme_color_override("font_color", Assets.color("text_dim"))
+	dev.add_theme_font_size_override("font_size", 18)
+	dev.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(dev)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(row)
 	for id in app.db.encounter_ids():
 		var enc: EncounterData = app.db.encounter(id)
 		var b := Button.new()
-		var names := PackedStringArray()
-		for eid in enc.enemy_ids:
-			names.append(app.db.enemy(eid).name)
-		b.text = enc.name if names.size() <= 1 else "%s（%s）" % [enc.name, " + ".join(names)]
-		b.custom_minimum_size = Vector2(520, 64)
+		b.text = enc.name
+		b.add_theme_font_size_override("font_size", 18)
 		b.pressed.connect(func() -> void: app.start_combat(id, randi()))
-		box.add_child(b)
+		row.add_child(b)
 
 	var hint := Label.new()
 	hint.text = "F2 切换 CRT 效果"
 	hint.add_theme_color_override("font_color", Assets.color("text_dim"))
-	hint.add_theme_font_size_override("font_size", 18)
+	hint.add_theme_font_size_override("font_size", 16)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(hint)
 
@@ -60,7 +77,6 @@ func _draw() -> void:
 		pts_a.append(Vector2(x, 300 + a))
 		pts_b.append(Vector2(x, 300 + b))
 		pts_n.append(Vector2(x, 300 + a + b))
-	draw_polyline(pts_a, Color(Assets.color("enemy_ch1"), 0.5), 2.0, true)
-	draw_polyline(pts_b, Color(Assets.color("player_wave"), 0.5), 2.0, true)
-	draw_polyline(pts_n, Color(Assets.color("net_wave"), 0.18), 10.0, true)
-	draw_polyline(pts_n, Assets.color("net_wave"), 3.0, true)
+	WaveDraw.trace(self, pts_a, Color(Assets.color("enemy_ch1"), 0.5), 2.0)
+	WaveDraw.trace(self, pts_b, Color(Assets.color("player_wave"), 0.5), 2.0)
+	WaveDraw.trace(self, pts_n, Assets.color("net_wave"), 3.0)

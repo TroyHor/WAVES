@@ -8,10 +8,15 @@ const FONT_DIR := "res://assets/fonts/"
 const AUDIO_DIR := "res://assets/audio/"
 
 ## Logical texture ids -> file paths. Missing files fall back to code-drawn placeholders.
+## Enemy portraits are referenced from data/enemies/*.json ("figure.texture").
 const TEXTURES := {
 	"card_frame": ART_DIR + "card_frame.png",
-	"enemy_default": ART_DIR + "enemy_default.png",
 	"player": ART_DIR + "player.png",
+	"enemy_drone": ART_DIR + "enemy_drone.png",
+	"enemy_shrieker": ART_DIR + "enemy_shrieker.png",
+	"enemy_tide_colossus": ART_DIR + "enemy_tide_colossus.png",
+	"enemy_twin_crest": ART_DIR + "enemy_twin_crest.png",
+	"enemy_twin_trough": ART_DIR + "enemy_twin_trough.png",
 	"background_combat": ART_DIR + "background_combat.png",
 }
 
@@ -37,6 +42,7 @@ const CRT := {
 	"bloom": 0.45,
 	"flicker": 0.02,
 	"wobble": 0.0008,
+	"ambient_glitch": 0.25,
 }
 
 const SOUNDS := {
