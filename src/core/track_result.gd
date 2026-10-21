@@ -1,6 +1,6 @@
-class_name LaneResult
+class_name TrackResult
 extends RefCounted
-## Per-cell resolution of a single lane. Produced by Resolver; read by UI previews.
+## Per-cell resolution of the wave track. Produced by Resolver; read by UI previews.
 
 enum Outcome {
 	EMPTY,        ## E = 0 and N = 0: nothing happens
