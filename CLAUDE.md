@@ -69,6 +69,7 @@ builds/                  导出产物（git 忽略）
 scripts/test.sh                 # 运行全部测试（会先 --import）
 scripts/test.sh superposition   # 只跑名字含该词的测试（跳过 UI 冒烟测试）
 scripts/balance.sh 50           # 机器人在每场战斗跑 50 个种子，输出胜率/回合数/掉血
+scripts/export.sh [macos|windows|linux|all]   # 无头导出到 builds/（需要 4.7.2 导出模板）
 /Applications/Godot.app/Contents/MacOS/Godot --path .   # 运行游戏
 ```
 Godot 可执行文件路径可用环境变量 `GODOT` 覆盖。
@@ -89,5 +90,6 @@ Godot 可执行文件路径可用环境变量 `GODOT` 覆盖。
 | 游戏渲染进 SubViewport，再经 CRT shader 显示；鼠标坐标用同一个桶形公式重映射 | 画面畸变后点击仍落在玩家看到的位置。`Main._crt_map` 必须与 shader 的 `barrel()` 保持一致。 |
 | UI 全部代码构建（`_draw` + 少量 Control），不手写复杂 .tscn | 无需编辑器即可维护；占位图形以后可逐个替换成贴图。 |
 | 字体：系统等宽字体 + 显式 CJK 回退字体 | 原型阶段零依赖。**上架前必须打包一款开源字体**（如 Noto Sans SC）到 `assets/fonts/main.ttf`，否则玩家机器上字体不可控。macOS 上 PingFang 不可加载，故优先 Hiragino Sans GB。 |
+| 导出预设 `include_filter="data/*.json"` | JSON 不是 Godot 资源，不显式包含就不会进导出包。tests/docs/scripts 不导出。macOS 用内置 ad-hoc 签名，正式上架前再换开发者证书 + 公证。 |
 | 敌人意图被随机叠加完全抵消时重新随机 | 保证敌人每回合一定有攻击。 |
 | 每张卡打出后在结算前可撤回（拿起已放置的牌 = unplay） | 拖动只有一种状态，预览统一用"假设打出"的 PlayedCard 计算。抽牌类卡打出即生效，不可撤回。 |
