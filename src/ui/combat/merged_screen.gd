@@ -12,7 +12,7 @@ var grid_w := 800.0
 ## [{track, color, label}]
 var enemy_channels: Array = []
 var enemy_sum := PackedInt32Array()
-## [{track, from, to, emphasis}]
+## Player wave(s) to draw; currently just the combined wave. [{track, from, to, emphasis}]
 var player_parts: Array = []
 var result: TrackResult
 var highlight_cell := -1
@@ -120,15 +120,12 @@ func _draw() -> void:
 	if enemy_channels.size() > 1 and not enemy_sum.is_empty():
 		var pts := WaveDraw.smooth_points(enemy_sum, 0, track_length - 1, x_of, func(v: float) -> float: return y_of.call(v) - in_off)
 		WaveDraw.trace(self, pts, Color(Assets.color("enemy_ch1").lerp(Assets.color("enemy_ch3"), 0.5), in_alpha * 0.6), 1.6, true)
-	# Player waves arrive from below.
+	# The player's combined wave arrives from below.
 	var pcol := Assets.color("player_wave")
 	for part in player_parts:
 		var from: int = maxi(0, part["from"])
 		var to: int = mini(track_length - 1, part["to"])
 		var pts := WaveDraw.smooth_points(part["track"], from, to, x_of, func(v: float) -> float: return y_of.call(v) + in_off)
-		WaveDraw.trace(self, pts, Color(pcol, in_alpha * (0.95 if part["emphasis"] else 0.5)), 2.6 if part["emphasis"] else 1.8)
-	if player_parts.size() > 1:
-		var pts := WaveDraw.smooth_points(result.player, 0, track_length - 1, x_of, func(v: float) -> float: return y_of.call(v) + in_off)
 		WaveDraw.trace(self, pts, Color(pcol, in_alpha), 3.0)
 		WaveDraw.pulses(self, pts, Color(pcol, in_alpha * 0.8), 3.0, _t + 0.5, 2, 0.22)
 

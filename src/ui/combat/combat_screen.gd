@@ -351,14 +351,11 @@ func _refresh_preview() -> void:
 	var pchans: Array = []
 	# Dashed guide: the wave that would cancel the enemy exactly.
 	pchans.append({"track": WaveMath.invert(enemy_track), "color": Color(Assets.color("player_wave"), 0.3), "width": 1.4, "dashed": true})
+	# Only the combined player wave is shown (individual cards are not drawn).
 	var parts: Array = []
-	for p in combat.played:
-		parts.append_array(_wave_entries(p, p.card == _hover_card))
-	if extra != null:
-		parts.append_array(_wave_entries(extra, true))
-	pchans.append_array(parts)
-	if parts.size() > 1:
-		pchans.append({"track": result.player, "color": Assets.color("player_wave"), "width": 3.2})
+	if not combat.played.is_empty() or extra != null:
+		parts.append({"track": result.player, "from": 0, "to": combat.rules.track_length - 1, "emphasis": true})
+		pchans.append({"track": result.player, "color": Assets.color("player_wave"), "width": 3.0})
 	ps.channels = pchans
 	ps.tint_track = enemy_track
 	ps.tint_color = Assets.color("enemy_ch1")
@@ -387,16 +384,6 @@ func _refresh_preview() -> void:
 	_discard_pile.count = combat.deck.discard_pile.size()
 	_resolve_btn.disabled = _animating or combat.outcome != Combat.Outcome.ONGOING
 	_update_tutorial(result)
-
-
-func _wave_entries(p: PlayedCard, emphasis: bool) -> Array:
-	var out: Array = []
-	var col := Assets.color("player_wave")
-	for pl in p.placements():
-		var track := WaveMath.place(pl.wave, pl.offset, combat.rules.track_length, combat.rules.offtrack_mode)
-		out.append({"track": track, "color": col if emphasis else Color(col, 0.7), "width": 3.0 if emphasis else 2.0,
-			"from": pl.offset - 1, "to": pl.offset + pl.wave.size(), "emphasis": emphasis})
-	return out
 
 
 func _update_enemy_panels(to_enemy: int) -> void:
