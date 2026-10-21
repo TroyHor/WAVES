@@ -23,8 +23,9 @@ func set_values(p_value: int, p_max: int, p_loss: int) -> void:
 
 
 func _draw() -> void:
+	var fsz := Assets.fs(font_size)
 	var font := get_theme_default_font()
-	var bar := Rect2(0, font_size + 6, size.x, size.y - font_size - 6)
+	var bar := Rect2(0, fsz + 6, size.x, size.y - fsz - 6)
 	draw_rect(bar, Assets.color("screen"))
 	var w := bar.size.x * value / max_value
 	draw_rect(Rect2(bar.position, Vector2(w, bar.size.y)), Color(color, 0.85))
@@ -39,8 +40,8 @@ func _draw() -> void:
 	draw_rect(bar, Assets.color("panel_border"), false, 2.0)
 	# Big current value, small max; previewed loss blinks on the right.
 	var big := str(value)
-	draw_string(font, Vector2(0, font_size), big, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
-	var bw := font.get_string_size(big, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	draw_string(font, Vector2(bw + 4, font_size), "/%d" % max_value, HORIZONTAL_ALIGNMENT_LEFT, -1, int(font_size * 0.6), Color(color, 0.7))
+	draw_string(font, Vector2(0, fsz), big, HORIZONTAL_ALIGNMENT_LEFT, -1, fsz, color)
+	var bw := font.get_string_size(big, HORIZONTAL_ALIGNMENT_LEFT, -1, fsz).x
+	draw_string(font, Vector2(bw + 4, fsz), "/%d" % max_value, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fsz * 0.6), Color(color, 0.7))
 	if preview_loss > 0:
-		draw_string(font, Vector2(0, font_size), "-%d" % preview_loss, HORIZONTAL_ALIGNMENT_RIGHT, size.x, int(font_size * 0.85), Assets.color("damage_to_player"))
+		draw_string(font, Vector2(0, fsz), "-%d" % preview_loss, HORIZONTAL_ALIGNMENT_RIGHT, size.x, int(fsz * 0.85), Assets.color("damage_to_player"))

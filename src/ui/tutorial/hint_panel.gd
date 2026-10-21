@@ -22,11 +22,11 @@ func _ready() -> void:
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.position = Vector2(22, 16)
 	label.size = Vector2(_box.size.x - 44, 0)
-	label.add_theme_font_size_override("font_size", 21)
+	label.add_theme_font_size_override("font_size", Assets.fs(21))
 	_box.add_child(label)
 	var title := Label.new()
 	title.text = "▸ 引导"
-	title.add_theme_font_size_override("font_size", 15)
+	title.add_theme_font_size_override("font_size", Assets.fs(15))
 	title.add_theme_color_override("font_color", Assets.color("energy"))
 	title.position = Vector2(22, -24)
 	_box.add_child(title)

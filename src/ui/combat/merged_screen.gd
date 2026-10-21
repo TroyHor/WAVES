@@ -89,7 +89,7 @@ func _draw() -> void:
 		var y := cy + i * g.size.y * 0.46 / 2.0
 		draw_line(Vector2(g.position.x, y), Vector2(g.end.x, y), Assets.color("grid_major") if i == 0 else Assets.color("grid"), 2.0 if i == 0 else 1.0)
 		if i != 0:
-			draw_string(font, Vector2(g.position.x + 6, y - 4), "%+.0f" % (-i * scale / 2.0), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Assets.color("text_dim"))
+			draw_string(font, Vector2(g.position.x + 6, y - 4), "%+.0f" % (-i * scale / 2.0), HORIZONTAL_ALIGNMENT_LEFT, -1, Assets.fs(14), Assets.color("text_dim"))
 
 	if result == null:
 		return

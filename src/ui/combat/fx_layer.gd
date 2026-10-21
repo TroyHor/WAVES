@@ -51,5 +51,5 @@ func _draw() -> void:
 		var k: float = (now - f["start"]) / f["dur"]
 		var pos: Vector2 = f["pos"] + Vector2(0, -60.0 * k)
 		# Pop: starts large and settles, Balatro-style.
-		var fs := int(44.0 * (1.0 + 0.6 * pow(1.0 - minf(k * 4.0, 1.0), 2)))
+		var fs := Assets.fs(44.0 * (1.0 + 0.6 * pow(1.0 - minf(k * 4.0, 1.0), 2)))
 		draw_string(font, pos + Vector2(-100, 0), f["text"], HORIZONTAL_ALIGNMENT_CENTER, 200, fs, Color(f["color"], 1.0 - k * k))

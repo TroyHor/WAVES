@@ -44,6 +44,6 @@ func _draw() -> void:
 		var x := -card.x * 0.35 + i * card.x * 0.7 / 12.0
 		pts.append(Vector2(x, -card.y * 0.18 + sin(i * 0.9) * card.y * 0.12))
 	draw_polyline(pts, Color(col, 0.8), 2.0, true)
-	var fs := int(34 * (1.0 + 0.25 * _bump))
+	var fs := Assets.fs(34 * (1.0 + 0.25 * _bump))
 	draw_string(font, Vector2(-card.x, card.y * 0.34), str(count), HORIZONTAL_ALIGNMENT_CENTER, card.x * 2, fs, Assets.color("net_wave"))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

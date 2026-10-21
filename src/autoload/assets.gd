@@ -3,6 +3,9 @@ extends Node
 ## To swap in final art, change the paths/colors here (or drop files at these
 ## paths) — no other script should hard-code a res:// asset path.
 
+## Global UI text scale: every font size in the UI goes through fs().
+const FONT_SCALE := 1.3
+
 const ART_DIR := "res://assets/art/"
 const FONT_DIR := "res://assets/fonts/"
 const AUDIO_DIR := "res://assets/audio/"
@@ -114,6 +117,11 @@ func sound(id: String) -> AudioStream:
 	if path != "" and ResourceLoader.exists(path):
 		return load(path)
 	return null
+
+
+## Scaled font size for a design-time size (see FONT_SCALE).
+func fs(size: float) -> int:
+	return maxi(1, roundi(size * FONT_SCALE))
 
 
 func color(id: String) -> Color:

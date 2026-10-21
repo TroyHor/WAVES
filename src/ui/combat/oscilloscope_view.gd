@@ -108,8 +108,8 @@ func _draw() -> void:
 	if plate.size.x > 30:
 		draw_rect(plate, Color(Assets.color("plate"), 0.12))
 		draw_rect(plate, Color(Assets.color("plate"), 0.35), false, 1.0)
-		draw_string(font, Vector2(plate.position.x, plate.position.y + 28), title, HORIZONTAL_ALIGNMENT_CENTER, plate.size.x, 18, accent)
-		draw_string(font, Vector2(plate.position.x, plate.position.y + 52), "OSC-16", HORIZONTAL_ALIGNMENT_CENTER, plate.size.x, 13, Color(Assets.color("plate"), 0.6))
+		draw_string(font, Vector2(plate.position.x, plate.position.y + 28), title, HORIZONTAL_ALIGNMENT_CENTER, plate.size.x, Assets.fs(18), accent)
+		draw_string(font, Vector2(plate.position.x, plate.position.y + 52), "OSC-16", HORIZONTAL_ALIGNMENT_CENTER, plate.size.x, Assets.fs(13), Color(Assets.color("plate"), 0.6))
 	# Knobs and LED (right of the tube).
 	var kx := tr.end.x + 20
 	var kw := size.x - kx - 14
@@ -122,7 +122,7 @@ func _draw() -> void:
 			draw_circle(c, rad, Assets.color("knob"))
 			var ang := -2.2 + i * 1.3 + sin(_t * 0.3 + i) * 0.05
 			draw_line(c, c + Vector2(cos(ang), sin(ang)) * rad * 0.85, Assets.color("plate"), 2.0)
-			draw_string(font, Vector2(kx, c.y + rad + 16), labels[i], HORIZONTAL_ALIGNMENT_CENTER, kw, 11, Color(Assets.color("plate"), 0.5))
+			draw_string(font, Vector2(kx, c.y + rad + 16), labels[i], HORIZONTAL_ALIGNMENT_CENTER, kw, Assets.fs(11), Color(Assets.color("plate"), 0.5))
 		var led := Vector2(kx + kw * 0.5, 14 + 6)
 		draw_circle(led, 8, Color(accent, 0.18))
 		draw_circle(led, 4, accent)

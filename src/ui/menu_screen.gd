@@ -16,7 +16,7 @@ func _ready() -> void:
 	var start := Button.new()
 	start.text = "开始新的一局  ▶"
 	start.custom_minimum_size = Vector2(520, 76)
-	start.add_theme_font_size_override("font_size", 30)
+	start.add_theme_font_size_override("font_size", Assets.fs(30))
 	start.pressed.connect(func() -> void: app.start_run(randi()))
 	box.add_child(start)
 
@@ -31,7 +31,7 @@ func _ready() -> void:
 	var dev := Label.new()
 	dev.text = "— 单场测试 —"
 	dev.add_theme_color_override("font_color", Assets.color("text_dim"))
-	dev.add_theme_font_size_override("font_size", 18)
+	dev.add_theme_font_size_override("font_size", Assets.fs(18))
 	dev.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(dev)
 
@@ -43,14 +43,14 @@ func _ready() -> void:
 		var enc: EncounterData = app.db.encounter(id)
 		var b := Button.new()
 		b.text = enc.name
-		b.add_theme_font_size_override("font_size", 18)
+		b.add_theme_font_size_override("font_size", Assets.fs(18))
 		b.pressed.connect(func() -> void: app.start_combat(id, randi()))
 		row.add_child(b)
 
 	var hint := Label.new()
 	hint.text = "F2 关闭画面特效"
 	hint.add_theme_color_override("font_color", Assets.color("text_dim"))
-	hint.add_theme_font_size_override("font_size", 16)
+	hint.add_theme_font_size_override("font_size", Assets.fs(16))
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(hint)
 
@@ -65,7 +65,7 @@ func _draw() -> void:
 	var cx := size.x * 0.5
 	# Background drawn here (not a ColorRect child) so it stays behind the title.
 	draw_rect(Rect2(Vector2.ZERO, size), Assets.color("background"))
-	draw_string(font, Vector2(0, 220), "W A V E S", HORIZONTAL_ALIGNMENT_CENTER, size.x, 120, Assets.color("text"))
+	draw_string(font, Vector2(0, 220), "W A V E S", HORIZONTAL_ALIGNMENT_CENTER, size.x, Assets.fs(120), Assets.color("text"))
 	# Two interfering traces under the title.
 	var pts_a := PackedVector2Array()
 	var pts_b := PackedVector2Array()

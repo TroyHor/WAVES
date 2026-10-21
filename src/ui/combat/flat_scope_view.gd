@@ -36,4 +36,4 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Assets.color("panel"))
 	draw_rect(Rect2(Vector2.ZERO, size), Assets.color("panel_border"), false, 2.0)
 	draw_rect(Rect2(10, size.y * 0.5 - 18, 6, 36), accent)
-	draw_string(font, Vector2(26, size.y * 0.5 + 9), title, HORIZONTAL_ALIGNMENT_LEFT, grid_x0 - 90, 24, accent)
+	draw_string(font, Vector2(26, size.y * 0.5 + 9), title, HORIZONTAL_ALIGNMENT_LEFT, grid_x0 - 90, Assets.fs(24), accent)

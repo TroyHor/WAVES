@@ -36,13 +36,13 @@ func _draw() -> void:
 	for t in range(1, track_length):
 		var x := grid_x0 + t * cw
 		draw_line(Vector2(x, 6), Vector2(x, size.y - 6), Color(Assets.color("grid"), 0.8), 1.0)
-	draw_string(font, Vector2(grid_x0 - 64, 28), "→敌", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Assets.color("damage_to_enemy"))
-	draw_string(font, Vector2(grid_x0 - 64, size.y - 10), "←我", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Assets.color("damage_to_player"))
+	draw_string(font, Vector2(grid_x0 - 64, 28), "→敌", HORIZONTAL_ALIGNMENT_LEFT, -1, Assets.fs(18), Assets.color("damage_to_enemy"))
+	draw_string(font, Vector2(grid_x0 - 64, size.y - 10), "←我", HORIZONTAL_ALIGNMENT_LEFT, -1, Assets.fs(18), Assets.color("damage_to_player"))
 	if result == null:
 		return
 	for t in track_length:
 		var p := _pop(t)
-		var fs := int(28 * p)
+		var fs := Assets.fs(28 * p)
 		if fs < 6:
 			continue
 		var x := grid_x0 + t * cw

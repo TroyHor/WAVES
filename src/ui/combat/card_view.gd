@@ -56,8 +56,8 @@ func _draw() -> void:
 	# Cost badge.
 	var badge := Vector2(24, 24 + lift)
 	draw_circle(badge, 17, Assets.color("energy") if playable else Assets.color("disabled"))
-	draw_string(font, badge + Vector2(-17, 8), str(card.data.cost), HORIZONTAL_ALIGNMENT_CENTER, 34, 22, Assets.color("background"))
-	draw_string(font, Vector2(48, 32 + lift), card.data.name, HORIZONTAL_ALIGNMENT_LEFT, 100, 20, text)
+	draw_string(font, badge + Vector2(-17, 8), str(card.data.cost), HORIZONTAL_ALIGNMENT_CENTER, 34, Assets.fs(22), Assets.color("background"))
+	draw_string(font, Vector2(48, 32 + lift), card.data.name, HORIZONTAL_ALIGNMENT_LEFT, 100, Assets.fs(20), text)
 
 	# Mini scope with the waveform.
 	var sr := Rect2(10, 48 + lift, CARD_SIZE.x - 20, 82)
@@ -67,16 +67,16 @@ func _draw() -> void:
 	if flipped:
 		wave = WaveMath.invert(wave)
 	if wave.is_empty():
-		draw_string(font, Vector2(sr.position.x, sr.get_center().y + 8), "— 无波形 —", HORIZONTAL_ALIGNMENT_CENTER, sr.size.x, 16, Assets.color("text_dim"))
+		draw_string(font, Vector2(sr.position.x, sr.get_center().y + 8), "— 无波形 —", HORIZONTAL_ALIGNMENT_CENTER, sr.size.x, Assets.fs(16), Assets.color("text_dim"))
 	else:
 		_draw_mini_wave(wave, sr, accent)
 
 	var rules := card.data.rules_text()
 	if rules != "":
-		draw_multiline_string(font, Vector2(10, 152 + lift), rules, HORIZONTAL_ALIGNMENT_LEFT, CARD_SIZE.x - 20, 15, 3, Assets.color("text_dim"))
+		draw_multiline_string(font, Vector2(10, 152 + lift), rules, HORIZONTAL_ALIGNMENT_LEFT, CARD_SIZE.x - 20, Assets.fs(15), 3, Assets.color("text_dim"))
 	if not wave.is_empty():
 		var nums := ",".join(Array(wave).map(func(v: int) -> String: return str(v)))
-		draw_string(font, Vector2(10, CARD_SIZE.y - 10 + lift), "[%s]" % nums, HORIZONTAL_ALIGNMENT_LEFT, CARD_SIZE.x - 20, 13, Color(accent, 0.7))
+		draw_string(font, Vector2(10, CARD_SIZE.y - 10 + lift), "[%s]" % nums, HORIZONTAL_ALIGNMENT_LEFT, CARD_SIZE.x - 20, Assets.fs(13), Color(accent, 0.7))
 
 
 func _draw_mini_wave(wave: PackedInt32Array, sr: Rect2, color: Color) -> void:

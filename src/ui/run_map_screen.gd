@@ -10,7 +10,7 @@ var _t := 0.0
 func _ready() -> void:
 	var b := Button.new()
 	b.size = Vector2(380, 72)
-	b.add_theme_font_size_override("font_size", 28)
+	b.add_theme_font_size_override("font_size", Assets.fs(28))
 	add_child(b)
 	var back := Button.new()
 	back.text = "返回菜单"
@@ -49,7 +49,7 @@ func _draw() -> void:
 	elif run.lost:
 		title = "信号丢失 · 本局结束"
 		title_col = Assets.color("damage_to_player")
-	draw_string(font, Vector2(0, size.y * 0.18), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, 64, title_col)
+	draw_string(font, Vector2(0, size.y * 0.18), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, Assets.fs(64), title_col)
 
 	var n := run.encounter_ids.size()
 	var y := size.y * 0.42
@@ -77,11 +77,11 @@ func _draw() -> void:
 		var box := Rect2(c - Vector2(110, 44), Vector2(220, 88))
 		draw_rect(box, Assets.color("panel"))
 		draw_rect(box, col, false, 3.0)
-		draw_string(font, Vector2(box.position.x, c.y + 8), enc.name, HORIZONTAL_ALIGNMENT_CENTER, box.size.x, 26, col)
-		draw_string(font, Vector2(box.position.x, box.end.y + 30), tag, HORIZONTAL_ALIGNMENT_CENTER, box.size.x, 18, col)
-		draw_string(font, Vector2(box.position.x, box.position.y - 14), "%d" % (i + 1), HORIZONTAL_ALIGNMENT_CENTER, box.size.x, 16, Assets.color("text_dim"))
+		draw_string(font, Vector2(box.position.x, c.y + 8), enc.name, HORIZONTAL_ALIGNMENT_CENTER, box.size.x, Assets.fs(26), col)
+		draw_string(font, Vector2(box.position.x, box.end.y + 30), tag, HORIZONTAL_ALIGNMENT_CENTER, box.size.x, Assets.fs(18), col)
+		draw_string(font, Vector2(box.position.x, box.position.y - 14), "%d" % (i + 1), HORIZONTAL_ALIGNMENT_CENTER, box.size.x, Assets.fs(16), Assets.color("text_dim"))
 
 	var hp_text := "玩家 HP  %d / %d" % [run.player_hp, run.player_max_hp]
-	draw_string(font, Vector2(0, size.y * 0.58), hp_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, Assets.color("player_wave"))
+	draw_string(font, Vector2(0, size.y * 0.58), hp_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, Assets.fs(30), Assets.color("player_wave"))
 	if not run.is_over():
-		draw_string(font, Vector2(0, size.y * 0.58 + 36), "血量在战斗之间不会恢复", HORIZONTAL_ALIGNMENT_CENTER, size.x, 18, Assets.color("text_dim"))
+		draw_string(font, Vector2(0, size.y * 0.58 + 36), "血量在战斗之间不会恢复", HORIZONTAL_ALIGNMENT_CENTER, size.x, Assets.fs(18), Assets.color("text_dim"))

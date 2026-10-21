@@ -21,9 +21,9 @@ func _ready() -> void:
 
 func _place_bar() -> void:
 	if _hp != null:
-		var compact := size.y < 100
-		_hp.font_size = 20 if compact else 26
-		var h := 46.0 if compact else 56.0
+		var compact := size.y < 110
+		_hp.font_size = 18 if compact else 26
+		var h := Assets.fs(_hp.font_size) + (20.0 if compact else 28.0)
 		_hp.position = Vector2(0, size.y - h)
 		_hp.size = Vector2(size.x, h)
 
@@ -45,13 +45,16 @@ func _draw() -> void:
 	var font := get_theme_default_font()
 	var col := Assets.color(enemy.data.color_id)
 	var alive := enemy.is_alive()
-	draw_string(font, Vector2(0, 20), enemy.data.name, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, col if alive else Assets.color("text_dim"))
+	var compact := size.y < 110
+	var name_fs := Assets.fs(18 if compact else 22)
+	var small_fs := Assets.fs(12 if compact else 15)
+	draw_string(font, Vector2(0, name_fs), enemy.data.name, HORIZONTAL_ALIGNMENT_LEFT, -1, name_fs, col if alive else Assets.color("text_dim"))
 	var intent := "已击破"
 	if alive and enemy.move != null:
 		intent = "意图：%s" % enemy.move.name
-	draw_string(font, Vector2(0, 20), intent, HORIZONTAL_ALIGNMENT_RIGHT, size.x, 15, Assets.color("text") if is_front or not multi else Assets.color("text_dim"))
+	draw_string(font, Vector2(0, name_fs), intent, HORIZONTAL_ALIGNMENT_RIGHT, size.x, small_fs, Assets.color("text") if is_front or not multi else Assets.color("text_dim"))
 	if multi and alive:
 		var tag := "▶ 前排" if is_front else "后排 · 无法攻击"
 		if is_front and swap_in > 0:
 			tag += " · %d 回合后交换" % swap_in
-		draw_string(font, Vector2(0, 38), tag, HORIZONTAL_ALIGNMENT_LEFT, size.x, 13, col if is_front else Assets.color("text_dim"))
+		draw_string(font, Vector2(0, name_fs + small_fs + 4), tag, HORIZONTAL_ALIGNMENT_LEFT, size.x, small_fs, col if is_front else Assets.color("text_dim"))

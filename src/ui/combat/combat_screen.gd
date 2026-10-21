@@ -15,7 +15,7 @@ const BACKGROUND_SHADER := preload("res://src/ui/crt/pcb_background.gdshader")
 const LAUNCH_SECONDS := 0.45
 const IMPACT_SECONDS := 0.6
 const SHOT_SECONDS := 0.5
-const LEFT_COL := 300.0
+const LEFT_COL := 330.0
 const RIGHT_MARGIN := 24.0
 ## Grid inset inside each wave panel (name plate on the left, knobs on the right).
 const GRID_INSET_L := 150.0
@@ -47,6 +47,8 @@ var _energy: EnergyView
 var _draw_pile: PileIcon
 var _discard_pile: PileIcon
 var _bg_mat: ShaderMaterial
+var _arrows: Array[ArrowIcon] = []
+var _enemy_row := Rect2()
 var _resolve_btn: Button
 var _menu_btn: Button
 var _toast: Label
@@ -114,9 +116,9 @@ func _ready() -> void:
 		arrow.up = up
 		arrow.color = Assets.color("damage_to_enemy") if up else Assets.color("damage_to_player")
 		arrow.tooltip_text = "预计对敌人造成的伤害" if up else "预计你受到的伤害"
-		arrow.position = Vector2(30, 246 if up else 326)
-		arrow.size = Vector2(40, 44)
+		arrow.size = Vector2(44, 48)
 		add_child(arrow)
+		_arrows.append(arrow)
 
 	_energy = EnergyView.new()
 	add_child(_energy)
@@ -128,7 +130,7 @@ func _ready() -> void:
 
 	_resolve_btn = Button.new()
 	_resolve_btn.text = "结算  ⏎"
-	_resolve_btn.add_theme_font_size_override("font_size", 28)
+	_resolve_btn.add_theme_font_size_override("font_size", Assets.fs(28))
 	_resolve_btn.pressed.connect(_resolve)
 	add_child(_resolve_btn)
 
@@ -169,7 +171,7 @@ func _make_scope(title: String, accent: Color, dir: float) -> FlatScopeView:
 
 func _make_label(font_size: int, color: Color) -> Label:
 	var l := Label.new()
-	l.add_theme_font_size_override("font_size", font_size)
+	l.add_theme_font_size_override("font_size", Assets.fs(font_size))
 	l.add_theme_color_override("font_color", color)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(l)
@@ -185,12 +187,21 @@ func _layout() -> void:
 	var pw := w - LEFT_COL - RIGHT_MARGIN
 	var gx0 := GRID_INSET_L
 	var gx1 := pw - GRID_INSET_R
-	_enemy_scope.position = Vector2(x, 10)
-	_enemy_scope.size = Vector2(pw, 190)
-	_merged.position = Vector2(x, 208)
-	_merged.size = Vector2(pw, 430)
-	_player_scope.position = Vector2(x, 646)
-	_player_scope.size = Vector2(pw, 190)
+	# Rows scale with the available height (16:10 screens get taller panels).
+	var hand_h := CardView.CARD_SIZE.y + 30.0
+	var avail := h - hand_h - 10.0
+	var row_h := maxf(196.0, avail * 0.22)
+	var mid_h := avail - row_h * 2 - 16.0
+	var e0 := 10.0
+	var m0 := e0 + row_h + 8.0
+	var p0 := m0 + mid_h + 8.0
+	_enemy_row = Rect2(0, e0, LEFT_COL, row_h)
+	_enemy_scope.position = Vector2(x, e0)
+	_enemy_scope.size = Vector2(pw, row_h)
+	_merged.position = Vector2(x, m0)
+	_merged.size = Vector2(pw, mid_h)
+	_player_scope.position = Vector2(x, p0)
+	_player_scope.size = Vector2(pw, row_h)
 	for s in [_enemy_scope, _player_scope]:
 		s.grid_x0 = gx0
 		s.grid_x1 = gx1
@@ -202,38 +213,42 @@ func _layout() -> void:
 
 	_layout_enemies(false)
 
-	# Centre-left column: preview totals (big numbers, arrow captions drawn
-	# in _draw) and the resolve button.
-	_to_enemy_label.position = Vector2(84, 236)
-	_to_player_label.position = Vector2(84, 316)
-	_turn_label.position = Vector2(24, 404)
-	_resolve_btn.position = Vector2(24, 548)
-	_resolve_btn.size = Vector2(LEFT_COL - 48, 80)
+	# Centre-left column: preview totals (arrow icons + big numbers) and resolve.
+	_arrows[0].position = Vector2(30, m0 + 38)
+	_arrows[1].position = Vector2(30, m0 + 38 + Assets.fs(80))
+	_to_enemy_label.position = Vector2(84, m0 + 20)
+	_to_player_label.position = Vector2(84, m0 + 20 + Assets.fs(80))
+	_turn_label.position = Vector2(24, m0 + 30 + Assets.fs(160))
+	_resolve_btn.position = Vector2(24, m0 + mid_h - 100)
+	_resolve_btn.size = Vector2(LEFT_COL - 48, 90)
 
 	# Player column beside the player panel, piles underneath.
-	_player_figure.position = Vector2(14, 650)
-	_energy.position = Vector2(150, 672)
-	_energy.size = Vector2(130, 60)
-	_player_hp.position = Vector2(20, 764)
-	_player_hp.size = Vector2(LEFT_COL - 44, 66)
-	_draw_pile.position = Vector2(24, h - 200)
-	_draw_pile.size = Vector2(110, 130)
-	_discard_pile.position = Vector2(150, h - 200)
-	_discard_pile.size = Vector2(110, 130)
+	_player_figure.position = Vector2(14, p0 + 2)
+	_energy.position = Vector2(160, p0 + 24)
+	_energy.size = Vector2(150, 64)
+	_player_hp.position = Vector2(20, p0 + row_h - 76)
+	_player_hp.size = Vector2(LEFT_COL - 44, 70)
+	var piles_y := p0 + row_h + 16
+	var pile_h := minf(140.0, h - piles_y - 14)
+	_draw_pile.position = Vector2(24, piles_y)
+	_draw_pile.size = Vector2(120, pile_h)
+	_discard_pile.position = Vector2(170, piles_y)
+	_discard_pile.size = Vector2(120, pile_h)
 
 	_hand_root.position = Vector2(0, h - CardView.CARD_SIZE.y - 14)
 	_hand_root.size = Vector2(w, CardView.CARD_SIZE.y)
-	_menu_btn.position = Vector2(w - 120, h - 56)
-	_menu_btn.size = Vector2(96, 44)
-	_toast.position = Vector2(LEFT_COL, _merged.position.y + 60)
+	_menu_btn.position = Vector2(w - 130, h - 60)
+	_menu_btn.size = Vector2(110, 48)
+	_toast.position = Vector2(LEFT_COL, m0 + 60)
 	_toast.size = Vector2(pw, 60)
 	_layout_hand()
 
 
-## Enemy column beside the enemy scope; the twins stack vertically, front on
+## Enemy column beside the enemy panel; the twins stack vertically, front on
 ## top. With `animate` the figures glide into their new slots (swap).
 func _layout_enemies(animate: bool) -> void:
 	var n := combat.enemies.size()
+	var row := _enemy_row
 	var tw: Tween = create_tween().set_parallel(true) if animate else null
 	for i in n:
 		var e := combat.enemies[i]
@@ -241,12 +256,14 @@ func _layout_enemies(animate: bool) -> void:
 		var fig_rect: Rect2
 		var panel_rect: Rect2
 		if n == 1:
-			fig_rect = Rect2(LEFT_COL * 0.5 - 60, 6, 120, 104)
-			panel_rect = Rect2(20, 108, LEFT_COL - 44, 90)
+			var fh := row.size.y * 0.5
+			fig_rect = Rect2(LEFT_COL * 0.5 - fh * 0.6, row.position.y, fh * 1.2, fh)
+			panel_rect = Rect2(20, row.position.y + fh, LEFT_COL - 44, row.size.y - fh)
 		else:
-			var y := 10.0 + i * 96.0
-			fig_rect = Rect2(12, y, 86, 86)
-			panel_rect = Rect2(102, y + 2, LEFT_COL - 126, 88)
+			var slot := row.size.y / n
+			var y := row.position.y + i * slot
+			fig_rect = Rect2(10, y + 4, 84, slot - 8)
+			panel_rect = Rect2(100, y + 2, LEFT_COL - 124, slot - 4)
 		v["figure"].size = fig_rect.size
 		v["panel"].size = panel_rect.size
 		if tw != null:
@@ -685,7 +702,7 @@ func _show_overlay() -> void:
 	_overlay.add_child(panel)
 	var title := Label.new()
 	title.text = "信号清除 · 胜利" if won else "信号丢失 · 失败"
-	title.add_theme_font_size_override("font_size", 52)
+	title.add_theme_font_size_override("font_size", Assets.fs(52))
 	title.add_theme_color_override("font_color", Assets.color("damage_to_enemy") if won else Assets.color("damage_to_player"))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.position = Vector2(0, 50)

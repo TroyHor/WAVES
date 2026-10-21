@@ -16,7 +16,7 @@ static func shared() -> Theme:
 static func build() -> Theme:
 	var t := Theme.new()
 	t.default_font = Assets.font("main")
-	t.default_font_size = 22
+	t.default_font_size = Assets.fs(22)
 
 	t.set_color("font_color", "Label", Assets.color("text"))
 
@@ -33,7 +33,7 @@ static func build() -> Theme:
 	t.set_color("font_hover_color", "Button", Assets.color("net_wave"))
 	t.set_color("font_pressed_color", "Button", Assets.color("net_wave"))
 	t.set_color("font_disabled_color", "Button", Assets.color("disabled"))
-	t.set_font_size("font_size", "Button", 24)
+	t.set_font_size("font_size", "Button", Assets.fs(24))
 
 	t.set_stylebox("panel", "Panel", _box(Assets.color("panel"), Assets.color("panel_border")))
 	return t
