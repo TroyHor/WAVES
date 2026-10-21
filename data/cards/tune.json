@@ -1,0 +1,6 @@
+{
+	"id": "tune",
+	"name": "调谐",
+	"cost": 0,
+	"on_play": [{"type": "draw", "amount": 2}]
+}

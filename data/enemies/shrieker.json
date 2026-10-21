@@ -1,0 +1,19 @@
+{
+	"id": "shrieker",
+	"name": "尖啸者",
+	"hp": 60,
+	"description": "零碎的高振幅尖峰，正负难料。",
+	"moves": [
+		{"id": "shriek", "name": "尖啸", "weight": 2, "max_repeat": 2,
+		 "waves": [
+			{"shape": [5], "offset": [0, 4], "random_flip": true},
+			{"shape": [5], "offset": [6, 9], "random_flip": true},
+			{"shape": [5], "offset": [11, 15], "random_flip": true}
+		 ]},
+		{"id": "double_stab", "name": "双刺", "weight": 1, "max_repeat": 1,
+		 "waves": [
+			{"shape": [2, 7], "offset": [0, 6], "random_flip": true},
+			{"shape": [7, 2], "offset": [8, 14], "random_flip": true}
+		 ]}
+	]
+}

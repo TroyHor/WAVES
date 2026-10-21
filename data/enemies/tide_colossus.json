@@ -1,0 +1,14 @@
+{
+	"id": "tide_colossus",
+	"name": "潮汐巨像",
+	"hp": 120,
+	"description": "蓄力之后，潮水几乎淹没整条波轨。",
+	"moves": [
+		{"id": "ripple", "name": "涟漪", "weight": 1, "max_repeat": 1,
+		 "waves": [{"shape": [2, -2, 2, -2], "offset": [0, 12]}]},
+		{"id": "charge", "name": "蓄潮", "weight": 1, "next": "tide",
+		 "waves": [{"shape": [1, 2, 1], "offset": [0, 13]}]},
+		{"id": "tide", "name": "大潮", "weight": 0,
+		 "waves": [{"shape": [1, 2, 3, 3, 2, 1, 1, 2, 3, 3, 2, 1], "offset": [0, 4]}]}
+	]
+}

@@ -1,0 +1,14 @@
+{
+	"id": "drone",
+	"name": "嗡鸣体",
+	"hp": 70,
+	"description": "稳定的低频方波。",
+	"moves": [
+		{"id": "hum", "name": "低鸣", "weight": 3, "max_repeat": 2,
+		 "waves": [{"shape": [2, 3, 3, 3, 3, 2], "offset": [0, 10]}]},
+		{"id": "sink", "name": "沉降", "weight": 1, "max_repeat": 1,
+		 "waves": [{"shape": [-2, -3, -3, -2], "offset": [0, 12]}]},
+		{"id": "drone_pair", "name": "双鸣", "weight": 1, "max_repeat": 1,
+		 "waves": [{"shape": [3, 3, 3], "offset": [0, 5]}, {"shape": [-3, -3, -3], "offset": [8, 13]}]}
+	]
+}
