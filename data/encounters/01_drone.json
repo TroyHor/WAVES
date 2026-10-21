@@ -1,0 +1,7 @@
+{
+	"id": "01_drone",
+	"name": "嗡鸣体",
+	"enemies": [
+		"drone"
+	]
+}

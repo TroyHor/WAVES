@@ -2,6 +2,12 @@
 	"id": "bipolar",
 	"name": "双极",
 	"cost": 1,
-	"wave": [3, 3, 3],
-	"flippable": true
+	"wave": [
+		3,
+		3,
+		3
+	],
+	"keywords": [
+		"flippable"
+	]
 }

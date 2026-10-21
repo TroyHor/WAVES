@@ -1,0 +1,41 @@
+{
+	"id": "twin_crest",
+	"name": "峰子",
+	"hp": 28,
+	"color": "enemy_ch1",
+	"moves": [
+		{
+			"id": "plateau",
+			"name": "高原",
+			"weight": 2,
+			"max_repeat": 2,
+			"waves": [
+				{
+					"shape": [
+						2,
+						2,
+						2,
+						2,
+						2
+					]
+				}
+			]
+		},
+		{
+			"id": "rise",
+			"name": "抬升",
+			"weight": 1,
+			"waves": [
+				{
+					"shape": [
+						1,
+						2,
+						3,
+						2,
+						1
+					]
+				}
+			]
+		}
+	]
+}

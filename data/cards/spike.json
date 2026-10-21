@@ -2,5 +2,7 @@
 	"id": "spike",
 	"name": "尖峰",
 	"cost": 1,
-	"wave": [7]
+	"wave": [
+		7
+	]
 }

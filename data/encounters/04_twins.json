@@ -1,0 +1,9 @@
+{
+	"id": "04_twins",
+	"name": "干涉双子",
+	"enemies": [
+		"twin_crest",
+		"twin_trough"
+	],
+	"swap_interval": 2
+}

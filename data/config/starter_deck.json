@@ -1,3 +1,14 @@
 {
-	"cards": ["pulse", "pulse", "trough", "trough", "square", "anti_square", "full_cycle", "spike", "bipolar", "tune"]
+	"cards": [
+		"pulse",
+		"pulse",
+		"trough",
+		"trough",
+		"square",
+		"anti_square",
+		"full_cycle",
+		"spike",
+		"bipolar",
+		"tune"
+	]
 }

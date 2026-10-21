@@ -1,0 +1,7 @@
+{
+	"id": "02_shrieker",
+	"name": "尖啸者",
+	"enemies": [
+		"shrieker"
+	]
+}

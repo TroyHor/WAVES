@@ -2,6 +2,15 @@
 	"id": "echo",
 	"name": "回声",
 	"cost": 1,
-	"wave": [3, 2, 1],
-	"echo": 5
+	"wave": [
+		3,
+		2,
+		1
+	],
+	"effects": [
+		{
+			"type": "echo",
+			"offset": 5
+		}
+	]
 }

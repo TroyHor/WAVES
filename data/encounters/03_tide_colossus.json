@@ -1,0 +1,7 @@
+{
+	"id": "03_tide_colossus",
+	"name": "潮汐巨像",
+	"enemies": [
+		"tide_colossus"
+	]
+}
