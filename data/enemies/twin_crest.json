@@ -1,7 +1,7 @@
 {
 	"id": "twin_crest",
 	"name": "峰子",
-	"hp": 28,
+	"hp": 48,
 	"color": "enemy_ch1",
 	"moves": [
 		{

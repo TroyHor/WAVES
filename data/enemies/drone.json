@@ -1,7 +1,7 @@
 {
 	"id": "drone",
 	"name": "嗡鸣体",
-	"hp": 40,
+	"hp": 80,
 	"color": "enemy_ch1",
 	"moves": [
 		{

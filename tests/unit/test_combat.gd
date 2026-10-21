@@ -244,11 +244,12 @@ func test_bot_finishes_every_encounter() -> void:
 		assert_ne(c.outcome, Combat.Outcome.ONGOING, "%s did not finish" % enc_id)
 
 
-func _bot_turn(c: Combat) -> void:
+func _bot_turn(c: Combat, hp_weight := 1.0) -> void:
 	var progress := true
 	while progress:
 		progress = false
-		var best_score := c.preview().to_enemy - c.preview().to_player
+		var now := c.preview()
+		var best_score := now.to_enemy - now.to_player * hp_weight
 		var best: PlayedCard = null
 		for card in c.deck.hand:
 			if not c.can_play(card):
@@ -261,7 +262,7 @@ func _bot_turn(c: Combat) -> void:
 				for flip in [false, true]:
 					var pc := PlayedCard.new(card, off, flip and card.data.has_keyword("flippable"))
 					var r := c.preview(pc)
-					var score := r.to_enemy - r.to_player
+					var score := r.to_enemy - r.to_player * hp_weight
 					if score > best_score:
 						best_score = score
 						best = pc

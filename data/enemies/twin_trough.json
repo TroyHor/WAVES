@@ -1,7 +1,7 @@
 {
 	"id": "twin_trough",
 	"name": "谷子",
-	"hp": 28,
+	"hp": 48,
 	"color": "enemy_ch3",
 	"moves": [
 		{

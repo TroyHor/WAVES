@@ -1,7 +1,7 @@
 {
 	"id": "shrieker",
 	"name": "尖啸者",
-	"hp": 32,
+	"hp": 60,
 	"color": "enemy_ch1",
 	"moves": [
 		{
