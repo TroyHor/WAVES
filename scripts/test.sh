@@ -18,4 +18,16 @@ if grep -qE "SCRIPT ERROR|Parse Error" "$LOG"; then
   echo "Script errors detected — failing the run." >&2
   exit 1
 fi
-exit "$status"
+[[ "$status" -ne 0 ]] && exit "$status"
+
+# UI smoke test: drives the real combat screen through the CRT input remap.
+# Skipped when a name filter is given.
+if [[ $# -eq 0 ]]; then
+  if ! "$GODOT_BIN" --headless --path . -- --selftest 2>&1 | tee "$LOG" | grep -q "UI SMOKE PASS"; then
+    cat "$LOG" >&2
+    echo "UI smoke test failed." >&2
+    exit 1
+  fi
+  echo "UI smoke test passed."
+fi
+exit 0

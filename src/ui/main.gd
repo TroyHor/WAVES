@@ -1,18 +1,153 @@
 extends Control
-## Entry scene. Placeholder until the combat scene exists (milestone 1, step 3).
+## App root. The game renders into a SubViewport which is shown through the CRT
+## shader; mouse input is remapped through the same barrel distortion so clicks
+## land on what the player sees. Also routes between screens.
+##
+## Dev flags (after `--`): --encounter=ID --seed=N --demo --nocrt --shot=PATH
+##   --selftest  runs tests/ui_smoke.gd through the real input path and quits
+
+const CRT_SHADER := preload("res://src/ui/crt/crt.gdshader")
+const MenuScreen := preload("res://src/ui/menu_screen.gd")
+const CombatScreen := preload("res://src/ui/combat/combat_screen.gd")
+
+var db: GameDatabase
+var rules: RulesConfig
+var theme_res: Theme
+
+var _viewport: SubViewport
+var _display: TextureRect
+var _crt_material: ShaderMaterial
+var _crt_enabled := true
+var _screen: Control
+var _args := {}
 
 
 func _ready() -> void:
-	var bg := ColorRect.new()
-	bg.color = Assets.color("background")
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
+	_args = _parse_args()
+	db = GameDatabase.load_default()
+	rules = RulesConfig.load_file()
+	theme_res = ThemeFactory.build()
 
-	var label := Label.new()
-	label.text = "WAVES — prototype skeleton"
-	label.add_theme_font_size_override("font_size", 48)
-	label.add_theme_color_override("font_color", Assets.color("text"))
-	label.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	label.grow_vertical = Control.GROW_DIRECTION_BOTH
-	add_child(label)
+	_viewport = SubViewport.new()
+	_viewport.handle_input_locally = true
+	_viewport.disable_3d = true
+	add_child(_viewport)
+
+	_crt_material = ShaderMaterial.new()
+	_crt_material.shader = CRT_SHADER
+	for key in Assets.CRT:
+		_crt_material.set_shader_parameter(key, Assets.CRT[key])
+
+	_display = TextureRect.new()
+	_display.texture = _viewport.get_texture()
+	_display.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_display.stretch_mode = TextureRect.STRETCH_SCALE
+	_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_display)
+
+	set_crt_enabled(not _args.has("nocrt"))
+	resized.connect(_on_resized)
+	_on_resized()
+
+	if _args.has("encounter"):
+		start_combat(_args["encounter"], int(_args.get("seed", randi())))
+	else:
+		show_menu()
+	if _args.has("shot"):
+		_take_screenshot_and_quit(_args["shot"])
+	if _args.has("selftest"):
+		var smoke = load("res://tests/ui_smoke.gd").new()
+		get_tree().quit(await smoke.run(self))
+
+
+func show_menu() -> void:
+	var menu := MenuScreen.new()
+	menu.app = self
+	_set_screen(menu)
+
+
+func start_combat(encounter_id: String, seed_value: int) -> void:
+	var screen := CombatScreen.new()
+	screen.app = self
+	screen.combat = Combat.from_encounter(db, encounter_id, seed_value, rules)
+	screen.encounter = db.encounter(encounter_id)
+	screen.seed_value = seed_value
+	screen.demo = _args.has("demo")
+	_set_screen(screen)
+
+
+func set_crt_enabled(enabled: bool) -> void:
+	_crt_enabled = enabled
+	_display.material = _crt_material if enabled else null
+
+
+func _set_screen(screen: Control) -> void:
+	if _screen != null:
+		_screen.queue_free()
+	_screen = screen
+	_screen.theme = theme_res
+	_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_viewport.add_child(_screen)
+
+
+func _on_resized() -> void:
+	_viewport.size = Vector2i(size)
+	_crt_material.set_shader_parameter("source_size", size)
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F2:
+		set_crt_enabled(not _crt_enabled)
+		get_viewport().set_input_as_handled()
+		return
+	var ev := event.duplicate()
+	if ev is InputEventMouse:
+		var local: Vector2 = ev.position - global_position
+		ev.position = _crt_map(local)
+		ev.global_position = ev.position
+	_viewport.push_input(ev, true)
+	get_viewport().set_input_as_handled()
+
+
+## Screen position -> game position. Mirrors barrel() in crt.gdshader: the pixel
+## shown at screen uv is sampled from the game image at barrel(uv).
+func _crt_map(p: Vector2) -> Vector2:
+	if not _crt_enabled or size.x <= 0 or size.y <= 0:
+		return p
+	var c := (p / size) * 2.0 - Vector2.ONE
+	c *= 1.0 + float(Assets.CRT["curvature"]) * c.dot(c)
+	return (c * 0.5 + Vector2(0.5, 0.5)) * size
+
+
+## Inverse of _crt_map (game position -> screen position), by fixed-point
+## iteration. Used by the UI smoke test to aim synthetic clicks.
+func crt_unmap(game_pos: Vector2) -> Vector2:
+	var p := game_pos
+	for i in 20:
+		p -= _crt_map(p) - game_pos
+	return p + global_position
+
+
+func current_screen() -> Control:
+	return _screen
+
+
+func _take_screenshot_and_quit(path: String) -> void:
+	for i in 45:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path)
+	print("screenshot saved: ", path)
+	get_tree().quit()
+
+
+func _parse_args() -> Dictionary:
+	var out := {}
+	for a in OS.get_cmdline_user_args():
+		var s := a.trim_prefix("--")
+		var eq := s.find("=")
+		if eq >= 0:
+			out[s.substr(0, eq)] = s.substr(eq + 1)
+		else:
+			out[s] = true
+	return out

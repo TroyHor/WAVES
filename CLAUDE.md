@@ -36,13 +36,21 @@ src/autoload/            全局单例：Assets（素材路径注册表）
 src/platform/            平台抽象（Platform 单例；之后接 GodotSteam 的后端放这里）
 data/config/rules.json   全局规则数值
 data/cards/*.json        每张卡一个文件
-data/enemies/*.json      每个敌人一个文件
+data/enemies/*.json      每个敌人一个文件（招式池）
+data/encounters/*.json   每场战斗一个文件（敌人列表、双子交换间隔）
+data/config/starter_deck.json  初始牌组
 assets/{art,fonts,audio} 正式素材放这里；路径只在 src/autoload/assets.gd 里登记
-tests/                   无头测试：run_tests.gd（运行器）、test_case.gd（断言基类）、unit/test_*.gd
-scripts/                 命令行脚本：test.sh、export.sh、godot_bin.sh
+tests/                   无头测试：run_tests.gd（运行器）、test_case.gd（断言基类）、unit/test_*.gd、
+                         ui_smoke.gd（UI 冒烟测试）、balance_probe.gd（平衡探针，非测试）
+scripts/                 命令行脚本：test.sh、balance.sh、export.sh、godot_bin.sh
 docs/                    设计文档
 builds/                  导出产物（git 忽略）
 ```
+
+## 美术方向
+- **电子示波器 + 老式 CRT 显示屏**：波轨就是示波器屏幕（网格刻度、通道颜色 CH1 琥珀/CH2 青/CH3 品红/MATH 白绿、磷光辉光）。
+- 全屏 CRT 后处理（`src/ui/crt/crt.gdshader`）：桶形畸变（边缘拉伸）、径向色差、磷光泛光、扫描线、滚动亮带、行抖动、噪点、闪烁、暗角。参数集中在 `Assets.CRT`，F2 开关。
+- 颜色全部来自 `Assets.COLORS`，UI 主题由 `ThemeFactory` 代码生成。
 
 ## 开发规范
 - **规则与表现分离**：叠加、结算、牌堆、能量、回合流程全部在 `src/core/`，可在无 UI 下被测试驱动。UI 只调用 core 的 API 并渲染结果（包括实时预览：UI 调用同一个结算函数做"试算"，绝不自己再算一遍）。
@@ -59,10 +67,14 @@ builds/                  导出产物（git 忽略）
 ## 常用命令
 ```bash
 scripts/test.sh                 # 运行全部测试（会先 --import）
-scripts/test.sh superposition   # 只跑名字含该词的测试
+scripts/test.sh superposition   # 只跑名字含该词的测试（跳过 UI 冒烟测试）
+scripts/balance.sh 50           # 机器人在每场战斗跑 50 个种子，输出胜率/回合数/掉血
 /Applications/Godot.app/Contents/MacOS/Godot --path .   # 运行游戏
 ```
 Godot 可执行文件路径可用环境变量 `GODOT` 覆盖。
+
+开发参数（写在 `--` 之后）：`--encounter=04_twins` 直接进入战斗，`--seed=N`，`--nocrt`，
+`--demo`（自动摆两张牌并模拟拖动第三张，用于截图），`--shot=路径.png`（截图后退出），`--selftest`（UI 冒烟测试）。
 
 ## 技术决策记录
 | 决策 | 理由 |
@@ -74,3 +86,8 @@ Godot 可执行文件路径可用环境变量 `GODOT` 覆盖。
 | 自写极简测试运行器，不用 GUT | 零第三方依赖，无头运行简单；需要时可再迁移 GUT。 |
 | core 层用 `RefCounted` + `class_name` | 可在测试里直接 new，无需场景树。test.sh 先 `--import` 以注册全局类名。 |
 | 平台层用 autoload 抽象 | 之后把 GodotSteam 作为后端塞进 `Platform`，gameplay 代码不变。 |
+| 游戏渲染进 SubViewport，再经 CRT shader 显示；鼠标坐标用同一个桶形公式重映射 | 画面畸变后点击仍落在玩家看到的位置。`Main._crt_map` 必须与 shader 的 `barrel()` 保持一致。 |
+| UI 全部代码构建（`_draw` + 少量 Control），不手写复杂 .tscn | 无需编辑器即可维护；占位图形以后可逐个替换成贴图。 |
+| 字体：系统等宽字体 + 显式 CJK 回退字体 | 原型阶段零依赖。**上架前必须打包一款开源字体**（如 Noto Sans SC）到 `assets/fonts/main.ttf`，否则玩家机器上字体不可控。macOS 上 PingFang 不可加载，故优先 Hiragino Sans GB。 |
+| 敌人意图被随机叠加完全抵消时重新随机 | 保证敌人每回合一定有攻击。 |
+| 每张卡打出后在结算前可撤回（拿起已放置的牌 = unplay） | 拖动只有一种状态，预览统一用"假设打出"的 PlayedCard 计算。抽牌类卡打出即生效，不可撤回。 |
