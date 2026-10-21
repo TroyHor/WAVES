@@ -88,6 +88,10 @@ func show_menu() -> void:
 
 ## Single fight outside a run (testing).
 func start_combat(encounter_id: String, seed_value: int) -> void:
+	if db.encounter(encounter_id) == null:
+		push_error("Unknown encounter '%s'" % encounter_id)
+		show_menu()
+		return
 	run = null
 	_show_combat(Combat.from_encounter(db, encounter_id, seed_value, rules), encounter_id, seed_value)
 

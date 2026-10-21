@@ -1,7 +1,7 @@
 class_name ScopeScreen
 extends Control
-## What is drawn on a bench oscilloscope's tube (rendered in a SubViewport and
-## shown through tube.gdshader). Traces are straight segments between samples.
+## Grid and traces of a single side's signal (enemy or player), drawn inside a
+## FlatScopeView. Traces are straight segments between samples.
 
 var track_length := 16
 ## Local x where the grid starts, and its width (matches the merged panel).
@@ -13,6 +13,7 @@ var tint_track := PackedInt32Array()
 var tint_color := Color.TRANSPARENT
 var highlight_cell := -1
 var amp_scale := 10.0
+var bg_color := Color(0, 0, 0, 0.35)
 ## Resolve animation: traces slide toward the merged panel (dir +1 = down).
 var launch := 0.0
 var launch_dir := 1.0
@@ -43,7 +44,7 @@ func _draw() -> void:
 	var font := get_theme_default_font()
 	var r := _grid_rect()
 	var cw := cell_width()
-	draw_rect(Rect2(Vector2.ZERO, size), Assets.color("screen"))
+	draw_rect(r, bg_color)
 	for t in mini(tint_track.size(), track_length):
 		if tint_track[t] != 0:
 			draw_rect(Rect2(r.position.x + t * cw, r.position.y, cw, r.size.y), Color(tint_color, 0.08))

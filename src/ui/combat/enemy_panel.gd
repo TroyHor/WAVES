@@ -21,8 +21,11 @@ func _ready() -> void:
 
 func _place_bar() -> void:
 	if _hp != null:
-		_hp.position = Vector2(0, size.y - 46)
-		_hp.size = Vector2(size.x, 46)
+		var compact := size.y < 100
+		_hp.font_size = 20 if compact else 26
+		var h := 46.0 if compact else 56.0
+		_hp.position = Vector2(0, size.y - h)
+		_hp.size = Vector2(size.x, h)
 
 
 func update_view(p_enemy: EnemyState, p_front: bool, p_multi: bool, p_swap_in: int, preview_loss: int) -> void:

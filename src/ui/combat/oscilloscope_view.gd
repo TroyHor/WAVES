@@ -1,17 +1,23 @@
 class_name OscilloscopeView
 extends Control
 ## A bench oscilloscope: drawn case, bezel, name plate, knobs and LED, around
-## a CRT tube. The tube is a SubViewport (ScopeScreen) shown through
-## tube.gdshader, so its edge distortion is local to this instrument.
+## a CRT tube. The tube is a SubViewport (any `screen` Control with grid_x0 /
+## grid_w properties) shown through tube.gdshader, so its edge distortion is
+## local to this instrument. Optionally an ink-green flowing-wave backdrop
+## glows behind the traces, and `bottom_pad` leaves case space for a readout.
 
 const TUBE_SHADER := preload("res://src/ui/crt/tube.gdshader")
+const FLOW_SHADER := preload("res://src/ui/crt/scope_flow.gdshader")
 ## Tube glass beyond the grid on each side (absorbs the barrel bulge).
 const TUBE_MARGIN := 26.0
 const TUBE_PAD_Y := 14.0
 
 var title := ""
 var accent := Color.WHITE
-var screen: ScopeScreen
+var screen: Control
+var flow_background := false
+## Case space reserved under the tube (e.g. for a readout strip).
+var bottom_pad := 0.0
 ## Grid x-range in this control's local coordinates (set by the layout).
 var grid_x0 := 100.0
 var grid_x1 := 900.0
@@ -20,9 +26,11 @@ var _tube: TextureRect
 var _t := 0.0
 
 
+var _flow: ColorRect
+
+
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	screen = ScopeScreen.new()
 
 
 func _ready() -> void:
@@ -31,6 +39,12 @@ func _ready() -> void:
 	_vp.transparent_bg = false
 	_vp.gui_disable_input = true
 	add_child(_vp)
+	if flow_background:
+		_flow = ColorRect.new()
+		var fm := ShaderMaterial.new()
+		fm.shader = FLOW_SHADER
+		_flow.material = fm
+		_vp.add_child(_flow)
 	# Themes don't propagate through a SubViewport; set it explicitly.
 	screen.theme = ThemeFactory.shared()
 	_vp.add_child(screen)
@@ -49,7 +63,7 @@ func _ready() -> void:
 
 
 func tube_rect() -> Rect2:
-	return Rect2(grid_x0 - TUBE_MARGIN, TUBE_PAD_Y, grid_x1 - grid_x0 + TUBE_MARGIN * 2, size.y - TUBE_PAD_Y * 2)
+	return Rect2(grid_x0 - TUBE_MARGIN, TUBE_PAD_Y, grid_x1 - grid_x0 + TUBE_MARGIN * 2, size.y - TUBE_PAD_Y * 2 - bottom_pad)
 
 
 func layout_tube() -> void:
@@ -60,8 +74,11 @@ func layout_tube() -> void:
 	_tube.size = r.size
 	_vp.size = Vector2i(r.size)
 	screen.size = r.size
-	screen.grid_x0 = TUBE_MARGIN
-	screen.grid_w = grid_x1 - grid_x0
+	screen.set("grid_x0", TUBE_MARGIN)
+	screen.set("grid_w", grid_x1 - grid_x0)
+	if _flow != null:
+		_flow.size = r.size
+		(_flow.material as ShaderMaterial).set_shader_parameter("aspect", r.size.x / maxf(1.0, r.size.y))
 	(_tube.material as ShaderMaterial).set_shader_parameter("tube_size", r.size)
 
 
@@ -87,7 +104,7 @@ func _draw() -> void:
 		draw_circle(p, 4.0, Assets.color("knob"))
 		draw_line(p - Vector2(3, 0), p + Vector2(3, 0), Assets.color("bezel"), 1.5)
 	# Name plate (left of the tube).
-	var plate := Rect2(14, size.y * 0.5 - 34, tr.position.x - 34, 68)
+	var plate := Rect2(14, tr.get_center().y - 34, tr.position.x - 34, 68)
 	if plate.size.x > 30:
 		draw_rect(plate, Color(Assets.color("plate"), 0.12))
 		draw_rect(plate, Color(Assets.color("plate"), 0.35), false, 1.0)
@@ -99,7 +116,7 @@ func _draw() -> void:
 	if kw > 40:
 		var labels := ["V/DIV", "T/DIV"]
 		for i in 2:
-			var c := Vector2(kx + kw * 0.5, size.y * (0.32 + 0.4 * i))
+			var c := Vector2(kx + kw * 0.5, tr.position.y + tr.size.y * (0.3 + 0.42 * i))
 			var rad := minf(kw * 0.32, 20.0)
 			draw_circle(c, rad + 3, Assets.color("bezel"))
 			draw_circle(c, rad, Assets.color("knob"))

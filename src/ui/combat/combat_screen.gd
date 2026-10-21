@@ -2,15 +2,16 @@ extends Control
 ## Combat screen. Owns no rules: every number shown comes from Combat.preview()
 ## or Combat.resolve_turn().
 ##
-## Layout (top to bottom): enemy bench scope, merged centre panel, player bench
-## scope, hand. A left column holds the enemy figure(s) beside the enemy scope,
-## the preview totals + resolve beside the centre, and the player beside the
-## player scope. All three wave panels share the same cell columns.
+## Layout (top to bottom): enemy signal panel (flat, polylines), the centre
+## bench oscilloscope (smooth overlaid waves + strength bars + readout), the
+## player signal panel, then the hand. A left column holds the enemy figure(s),
+## the preview totals + resolve, and the player figure/HP/energy/piles. All
+## three wave panels share the same cell columns.
 ##
 ## Controls: drag a card onto the scopes; right-click / R flips flippable cards;
 ## drag a placed wave off the scopes to take it back; Enter/Space resolves.
 
-const BACKGROUND_SHADER := preload("res://src/ui/crt/background.gdshader")
+const BACKGROUND_SHADER := preload("res://src/ui/crt/pcb_background.gdshader")
 const LAUNCH_SECONDS := 0.45
 const IMPACT_SECONDS := 0.6
 const SHOT_SECONDS := 0.5
@@ -29,8 +30,8 @@ var demo := false
 var run: RunState
 var tutorial_enabled := true
 
-var _enemy_scope: OscilloscopeView
-var _player_scope: OscilloscopeView
+var _enemy_scope: FlatScopeView
+var _player_scope: FlatScopeView
 var _merged: MergedView
 var _fx: FxLayer
 var _hand_root: Control
@@ -42,9 +43,10 @@ var _enemy_views := {}
 var _to_enemy_label: Label
 var _to_player_label: Label
 var _turn_label: Label
-var _energy_label: Label
-var _pile_label: Label
-var _hint_label: Label
+var _energy: EnergyView
+var _draw_pile: PileIcon
+var _discard_pile: PileIcon
+var _bg_mat: ShaderMaterial
 var _resolve_btn: Button
 var _menu_btn: Button
 var _toast: Label
@@ -69,9 +71,9 @@ func _ready() -> void:
 	var bg := ColorRect.new()
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var bg_mat := ShaderMaterial.new()
-	bg_mat.shader = BACKGROUND_SHADER
-	bg.material = bg_mat
+	_bg_mat = ShaderMaterial.new()
+	_bg_mat.shader = BACKGROUND_SHADER
+	bg.material = _bg_mat
 	add_child(bg)
 
 	_enemy_scope = _make_scope("敌方信号", Assets.color("enemy_ch1"), 1.0)
@@ -104,14 +106,25 @@ func _ready() -> void:
 	_player_hp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_player_hp)
 
-	_to_enemy_label = _make_label(30, Assets.color("damage_to_enemy"))
-	_to_player_label = _make_label(30, Assets.color("damage_to_player"))
+	_to_enemy_label = _make_label(48, Assets.color("damage_to_enemy"))
+	_to_player_label = _make_label(48, Assets.color("damage_to_player"))
 	_turn_label = _make_label(18, Assets.color("text_dim"))
-	_energy_label = _make_label(24, Assets.color("energy"))
-	_pile_label = _make_label(15, Assets.color("text_dim"))
-	_hint_label = _make_label(14, Assets.color("text_dim"))
-	_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_hint_label.text = "拖动卡牌到示波器\n右键 / R 反相\n拖出示波器可撤回\nEnter 结算 · F2 关闭画面特效"
+	for up in [true, false]:
+		var arrow := ArrowIcon.new()
+		arrow.up = up
+		arrow.color = Assets.color("damage_to_enemy") if up else Assets.color("damage_to_player")
+		arrow.tooltip_text = "预计对敌人造成的伤害" if up else "预计你受到的伤害"
+		arrow.position = Vector2(30, 246 if up else 326)
+		arrow.size = Vector2(40, 44)
+		add_child(arrow)
+
+	_energy = EnergyView.new()
+	add_child(_energy)
+	_draw_pile = PileIcon.new()
+	add_child(_draw_pile)
+	_discard_pile = PileIcon.new()
+	_discard_pile.discard = true
+	add_child(_discard_pile)
 
 	_resolve_btn = Button.new()
 	_resolve_btn.text = "结算  ⏎"
@@ -144,8 +157,8 @@ func _ready() -> void:
 	refresh()
 
 
-func _make_scope(title: String, accent: Color, dir: float) -> OscilloscopeView:
-	var s := OscilloscopeView.new()
+func _make_scope(title: String, accent: Color, dir: float) -> FlatScopeView:
+	var s := FlatScopeView.new()
 	s.title = title
 	s.accent = accent
 	s.screen.track_length = combat.rules.track_length
@@ -181,32 +194,37 @@ func _layout() -> void:
 	for s in [_enemy_scope, _player_scope]:
 		s.grid_x0 = gx0
 		s.grid_x1 = gx1
-		s.layout_tube()
+		s.layout_screen()
 	_merged.grid_x0 = gx0
 	_merged.grid_x1 = gx1
+	_merged.layout_parts()
+	_bg_mat.set_shader_parameter("size_px", size)
 
 	_layout_enemies(false)
 
-	# Centre-left column: preview totals and the resolve button.
-	_to_enemy_label.position = Vector2(24, 232)
-	_to_player_label.position = Vector2(24, 280)
-	_turn_label.position = Vector2(24, 336)
-	_hint_label.position = Vector2(24, 400)
-	_hint_label.size = Vector2(LEFT_COL - 40, 120)
+	# Centre-left column: preview totals (big numbers, arrow captions drawn
+	# in _draw) and the resolve button.
+	_to_enemy_label.position = Vector2(84, 236)
+	_to_player_label.position = Vector2(84, 316)
+	_turn_label.position = Vector2(24, 404)
 	_resolve_btn.position = Vector2(24, 548)
 	_resolve_btn.size = Vector2(LEFT_COL - 48, 80)
 
-	# Player column beside the player scope.
-	_player_figure.position = Vector2(20, 652)
-	_player_hp.position = Vector2(20, 766)
-	_player_hp.size = Vector2(LEFT_COL - 44, 46)
-	_energy_label.position = Vector2(150, 690)
+	# Player column beside the player panel, piles underneath.
+	_player_figure.position = Vector2(14, 650)
+	_energy.position = Vector2(150, 672)
+	_energy.size = Vector2(130, 60)
+	_player_hp.position = Vector2(20, 764)
+	_player_hp.size = Vector2(LEFT_COL - 44, 66)
+	_draw_pile.position = Vector2(24, h - 200)
+	_draw_pile.size = Vector2(110, 130)
+	_discard_pile.position = Vector2(150, h - 200)
+	_discard_pile.size = Vector2(110, 130)
 
 	_hand_root.position = Vector2(0, h - CardView.CARD_SIZE.y - 14)
 	_hand_root.size = Vector2(w, CardView.CARD_SIZE.y)
 	_menu_btn.position = Vector2(w - 120, h - 56)
 	_menu_btn.size = Vector2(96, 44)
-	_pile_label.position = Vector2(20, h - 30)
 	_toast.position = Vector2(LEFT_COL, _merged.position.y + 60)
 	_toast.size = Vector2(pw, 60)
 	_layout_hand()
@@ -256,7 +274,7 @@ func anchor_rect(anchor: String) -> Rect2:
 		"collision": return _merged.get_rect()
 		"resolve": return _resolve_btn.get_rect()
 		"player_figure": return _player_figure.get_rect().merge(_player_hp.get_rect())
-		"energy": return _energy_label.get_rect()
+		"energy": return _energy.get_rect()
 		"enemy_figure":
 			var front := combat.front_enemy()
 			if front != null:
@@ -358,16 +376,15 @@ func _refresh_preview() -> void:
 
 	_player_hp.set_values(combat.player_hp, combat.player_max_hp, result.to_player)
 	_update_enemy_panels(result.to_enemy)
-	_to_enemy_label.text = "预计对敌  %d" % result.to_enemy
-	_to_player_label.text = "预计受到  %d" % result.to_player
-	_turn_label.text = "第 %d 回合" % combat.turn
+	_to_enemy_label.text = str(result.to_enemy)
+	_to_player_label.text = str(result.to_player)
+	_turn_label.text = "回合 %d" % combat.turn
 	if combat.swap_in() > 0:
-		_turn_label.text += "\n%d 回合后双子交换" % combat.swap_in()
-	_energy_label.text = "能量\n%s %d/%d" % ["◆".repeat(combat.energy) + "◇".repeat(maxi(0, combat.rules.energy_per_turn - combat.energy)), combat.energy, combat.rules.energy_per_turn]
-	var where := encounter.name
-	if run != null:
-		where = "第 %d/%d 战 · %s" % [run.index + 1, run.encounter_ids.size(), encounter.name]
-	_pile_label.text = "抽牌堆 %d  弃牌堆 %d  ·  %s  ·  种子 %d" % [combat.deck.draw_pile.size(), combat.deck.discard_pile.size(), where, seed_value]
+		_turn_label.text += "  ·  交换倒计时 %d" % combat.swap_in()
+	_energy.energy = combat.energy
+	_energy.max_energy = combat.rules.energy_per_turn
+	_draw_pile.count = combat.deck.draw_pile.size()
+	_discard_pile.count = combat.deck.discard_pile.size()
 	_resolve_btn.disabled = _animating or combat.outcome != Combat.Outcome.ONGOING
 	_update_tutorial(result)
 
