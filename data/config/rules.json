@@ -1,0 +1,10 @@
+{
+	"track_length": 16,
+	"player_max_hp": 60,
+	"energy_per_turn": 3,
+	"hand_size": 5,
+	"max_hand_size": 10,
+	"overflow_mode": "waste",
+	"allow_partial_offtrack": true,
+	"allow_reposition_before_resolve": true
+}
