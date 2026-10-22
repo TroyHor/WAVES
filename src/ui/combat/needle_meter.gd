@@ -46,7 +46,8 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	var font := get_theme_default_font()
-	var dial_h := minf(size.y * 0.58, (size.x - 8) * 0.72)
+	# The dial takes everything above the digit window.
+	var dial_h := minf(size.y - Assets.fs(40) - 26.0, (size.x - 8) * 0.72)
 	var dial := Rect2(4, 0, size.x - 8, dial_h)
 	var face := StyleBoxFlat.new()
 	face.bg_color = Color("ece5d2")

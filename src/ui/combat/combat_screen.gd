@@ -23,13 +23,13 @@ const SHOT_SECONDS := 0.5
 const SCOPE_FLAT := Vector2(2000, 900)
 ## Transmitter (L-shaped, side view): the upright face, and the horizontal
 ## foot with the card slots lying on the desk in front of it.
-const TX_FLAT := Vector2(1500, 205)
+const TX_FLAT := Vector2(1500, 250)
 const FOOT_FLAT := Vector2(1500, 300)
 ## Share of the transmitter's on-screen height taken by the upright face.
-const TX_FACE_SHARE := 0.52
+const TX_FACE_SHARE := 0.68
 ## Front lip thickness of the foot (pixels).
 const FOOT_LIP := 14.0
-const GAUGE_FLAT := Vector2(380, 440)
+const GAUGE_FLAT := Vector2(380, 360)
 ## Scope unit face: left column (ports / counters) and right knob strip.
 const SCOPE_LEFT := 400.0
 const SCOPE_RIGHT := 110.0
@@ -173,7 +173,6 @@ func _ready() -> void:
 	_fire_art = Button.new()
 	_fire_art.text = "发射"
 	_fire_art.add_theme_font_size_override("font_size", Assets.fs(34))
-	ThemeFactory.style_fire_key(_fire_art)
 	_tx_dev.content.add_child(_fire_art)
 	_foot_dev = _make_device(FOOT_FLAT)
 	_foot_dev.depth = 0.0
@@ -414,7 +413,9 @@ func _layout_faces() -> void:
 	# --- Transmitter face: bulbs | screen | fire key (the foot is _slot).
 	var face_h := TX_FLAT.y
 	var bulbs := Rect2(IN, IN, 110, face_h - IN * 2)
-	var key_w := 210.0
+	# Round fire key filling the face's height, its ready lamp at the top right.
+	var key_d := face_h - IN * 2 - 6.0
+	var key_w := key_d + 40.0
 	var twin := Rect2(bulbs.end.x + IN, IN, TX_FLAT.x - bulbs.end.x - IN * 3 - key_w, face_h - IN * 2)
 	_transmitter.windows = [twin]
 	_transmitter.labels = []
@@ -424,10 +425,11 @@ func _layout_faces() -> void:
 	_player_tube.size = twin.size
 	_player_screen.grid_x0 = 28.0
 	_player_screen.grid_w = twin.size.x - 56.0
-	var key := Rect2(twin.end.x + IN, IN + 44, key_w, face_h - IN * 2 - 44)
+	var key := Rect2(twin.end.x + IN + (key_w - key_d) * 0.5 - 8.0, (face_h - key_d) * 0.5, key_d, key_d)
 	_fire_art.position = key.position
 	_fire_art.size = key.size
-	_transmitter.lamps = [{"center": Vector2(key.get_center().x, IN + 20), "on": false, "color": Color("ff4d3a")}]
+	ThemeFactory.style_fire_key(_fire_art, int(key_d * 0.5))
+	_transmitter.lamps = [{"center": Vector2(TX_FLAT.x - IN - 4.0, IN + 6.0), "on": false, "color": Color("ff4d3a")}]
 	_slot.grid_x0 = twin.position.x + _player_screen.grid_x0
 	_slot.grid_w = _player_screen.grid_w
 
@@ -867,7 +869,10 @@ func _update_drag(mouse: Vector2) -> void:
 	_hover_cell = _cell_at(mouse) if _drag_over else -1
 	# Dropped into a slot, the card starts at that slot; over the screens the
 	# grabbed sample follows the mouse.
-	_drag_offset = _cell_at(mouse) - (0 if _foot_dev.contains_screen(mouse) else _drag_grab)
+	# Every card stands in a real slot, so the start cell is clamped to the
+	# track (a card dropped anywhere else would have no slot to show it).
+	_drag_offset = clampi(_cell_at(mouse) - (0 if _foot_dev.contains_screen(mouse) else _drag_grab),
+		0, combat.rules.track_length - 1)
 	if _drag_ghost != null:
 		_drag_ghost.global_position = mouse - CardView.CARD_SIZE * 0.5
 		# Over the scopes the wave itself is the feedback; hide the card.

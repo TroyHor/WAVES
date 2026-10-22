@@ -1,14 +1,14 @@
 class_name SlotCards
 extends Control
 ## Punch cards standing in the transmitter's slots (screen space, drawn over
-## the foot). An inserted card is shrunk and only its top part shows — name,
-## cost, waveform and values — so it can be read in place. Cards further right
-## stand in front; several cards in one slot fan up a little; the hovered card
-## rises, grows and comes to the front.
+## the foot). An inserted card is shrunk to fit inside its slit and only its
+## top part shows — name, cost, waveform and values. Several cards in one slot
+## step up a little; the hovered card rises, grows (to be read) and comes to
+## the front.
 
-## Card width in cells (cards overlap their right neighbours).
-const WIDTH_CELLS := 2.0
-const HOVER_SCALE := 1.5
+## Card width as a share of a cell (= the slit's width).
+const WIDTH_CELLS := 0.84
+const HOVER_SCALE := 2.6
 
 ## [{card: CardInstance, offset: int, flipped: bool, ghost: bool}]
 var stubs: Array = []
@@ -78,10 +78,11 @@ func _draw() -> void:
 		var off: int = st["offset"]
 		if off < 0 or off >= bases.size():
 			continue
-		# Stacked cards in one slot: each one a bit higher and to the right.
-		var base := bases[off] + Vector2(e["stack"] * 8.0, -e["stack"] * 12.0)
+		# Stacked cards in one slot: each one a bit higher.
+		var base := bases[off] + Vector2(0, -e["stack"] * 14.0)
 		if lit:
-			base += Vector2(0, -10)
+			# Grow around the slot's centre, lifted out of the slit a little.
+			base += Vector2(-CardView.CARD_SIZE.x * (sc - s) * 0.5, -10)
 		var top_left := base - Vector2(0, PunchCard.TOP_H * sc)
 		var alpha := 0.55 if st.get("ghost", false) else 1.0
 		draw_set_transform(top_left, 0.0, Vector2(sc, sc))
@@ -89,5 +90,6 @@ func _draw() -> void:
 		draw_set_transform(Vector2.ZERO)
 		# The slit's near lip in front of the card's lower edge.
 		var w := CardView.CARD_SIZE.x * sc
-		draw_line(base + Vector2(-2, 1), base + Vector2(w + 2, 1), Color(0, 0, 0, 0.55 * alpha), 3.0)
+		if not lit:
+			draw_line(base + Vector2(-1, 1), base + Vector2(w + 1, 1), Color(0, 0, 0, 0.55 * alpha), 3.0)
 		_hits.append({"rect": Rect2(top_left, Vector2(w, PunchCard.TOP_H * sc)), "card": st["card"]})

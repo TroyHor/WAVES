@@ -42,11 +42,14 @@ static func build() -> Theme:
 
 
 ## The big red fire key on the transmitter.
-static func style_fire_key(b: Button) -> void:
+## Big red fire key. Pass `radius` = half the key's size for a round button.
+static func style_fire_key(b: Button, radius := InstrumentStyle.KEY_RADIUS + 4) -> void:
 	var red := Color("c8352b")
 	for state in ["normal", "hover", "pressed", "disabled"]:
 		var box := StyleBoxFlat.new()
-		box.set_corner_radius_all(InstrumentStyle.KEY_RADIUS + 4)
+		box.set_corner_radius_all(radius)
+		box.corner_detail = 24
+		box.anti_aliasing = true
 		box.set_border_width_all(3)
 		box.border_color = Color("6e1712")
 		box.shadow_color = Color(0, 0, 0, 0.45)

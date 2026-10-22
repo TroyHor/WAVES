@@ -20,13 +20,22 @@ func _ready() -> void:
 	_place_bar()
 
 
+## Name and HP bar form one block, centred vertically in the panel.
+func _name_fs() -> int:
+	return Assets.fs(18 if size.y < 110 else 22)
+
+
+func _block_top() -> float:
+	return maxf(0.0, (size.y - _name_fs() - 8.0 - _hp.size.y) * 0.5)
+
+
 func _place_bar() -> void:
 	if _hp != null:
 		var compact := size.y < 110
 		_hp.font_size = 18 if compact else 26
-		var h := Assets.fs(_hp.font_size) + (20.0 if compact else 28.0)
-		_hp.position = Vector2(0, size.y - h)
+		var h := Assets.fs(_hp.font_size) + (16.0 if compact else 22.0)
 		_hp.size = Vector2(size.x, h)
+		_hp.position = Vector2(0, _block_top() + _name_fs() + 8.0)
 
 
 func update_view(p_enemy: EnemyState, p_front: bool, p_multi: bool, p_swap_in: int, preview_loss: int) -> void:
@@ -50,11 +59,11 @@ func _draw() -> void:
 	var col := Assets.color(enemy.data.color_id)
 	var ink := Assets.color("case_print")
 	var alive := enemy.is_alive()
-	var compact := size.y < 110
-	var name_fs := Assets.fs(18 if compact else 22)
-	draw_rect(Rect2(0, name_fs * 0.2, 8, name_fs * 0.8), col if alive else Color(ink, 0.4))
+	var name_fs := _name_fs()
+	var y0 := _block_top()
+	draw_rect(Rect2(0, y0 + name_fs * 0.2, 8, name_fs * 0.8), col if alive else Color(ink, 0.4))
 	var title := enemy.data.name
 	if multi and alive:
 		# Front is marked with ▶; the back twin is just dimmed (no extra text).
 		title = ("▶ " if is_front else "") + title
-	draw_string(font, Vector2(14, name_fs), title, HORIZONTAL_ALIGNMENT_LEFT, size.x - 14, name_fs, ink if alive else Color(ink, 0.45))
+	draw_string(font, Vector2(14, y0 + name_fs), title, HORIZONTAL_ALIGNMENT_LEFT, size.x - 14, name_fs, ink if alive else Color(ink, 0.45))
