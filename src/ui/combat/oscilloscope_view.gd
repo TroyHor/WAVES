@@ -105,17 +105,14 @@ func _draw() -> void:
 	if show_plate and plate.size.x > 40:
 		InstrumentStyle.draw_plate(self, plate)
 		draw_string(font, Vector2(plate.position.x, plate.position.y + 34), title, HORIZONTAL_ALIGNMENT_CENTER, plate.size.x, Assets.fs(20), Assets.color("plate"))
-		draw_string(font, Vector2(plate.position.x, plate.position.y + 62), "OSC-16", HORIZONTAL_ALIGNMENT_CENTER, plate.size.x, Assets.fs(12), Color(Assets.color("plate"), 0.6))
 	# Two knurled knobs and the power lamp on the right.
 	var kx := tr.end.x + 26
 	var kw := size.x - kx - 14
 	if kw > 40:
 		var rad := minf(kw * 0.34, 26.0)
-		var labels := ["亮度", "聚焦"]
 		for i in 2:
 			var c := Vector2(kx + kw * 0.5, tr.position.y + tr.size.y * (0.3 + 0.42 * i))
 			_draw_knob(c, rad, -2.3 + i * 1.4)
-			draw_string(font, Vector2(kx - 8, c.y + rad + Assets.fs(12) + 4), labels[i], HORIZONTAL_ALIGNMENT_CENTER, kw + 16, Assets.fs(10), Assets.color("case_print"))
 		var led := Vector2(kx + kw * 0.5, tr.position.y + 6)
 		draw_circle(led, 9, Color(accent, 0.25))
 		draw_circle(led, 5, accent)

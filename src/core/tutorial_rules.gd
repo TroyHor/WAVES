@@ -6,7 +6,7 @@ extends RefCounted
 ## Hint: {id, text, anchor, after?, complete?, trigger: {conditions...}}
 ## All trigger conditions present must hold; `after` must already be seen.
 
-const ANCHORS := ["enemy_scope", "player_scope", "collision", "hand", "resolve", "player_figure", "enemy_figure", "energy", "none"]
+const ANCHORS := ["enemy_scope", "player_scope", "collision", "hand", "resolve", "player_figure", "enemy_figure", "energy", "slot", "counter", "none"]
 const COMPLETE := ["button", "card_played", "resolve"]
 const CONDITIONS := ["encounter", "turn", "run_index", "hand_keyword", "hand_effect", "preview_outcome", "multi_enemy", "forced_next", "played_at_least"]
 

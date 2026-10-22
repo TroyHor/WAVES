@@ -14,6 +14,8 @@ var content := Control.new()
 var quad := PackedVector2Array()
 ## Soft contact shadow cast onto the desk below the device.
 var cast_shadow := true
+## Visible case thickness above the face (pseudo-3D top surface), in pixels.
+var depth := 0.0
 var _vp: SubViewport
 var _tex: TextureRect
 var _mat: ShaderMaterial
@@ -129,7 +131,16 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	if not cast_shadow or quad.size() < 4:
+	if quad.size() < 4:
+		return
+	if depth > 0.0:
+		# Top surface of the case, receding upward and slightly inward.
+		var inset := depth * 0.6
+		var top := PackedVector2Array([quad[0], quad[1], quad[1] + Vector2(-inset, -depth), quad[0] + Vector2(inset, -depth)])
+		draw_colored_polygon(top, Assets.color("case").lightened(0.1))
+		draw_line(top[3], top[2], Color(Assets.color("case_edge"), 0.9), 2.0, true)
+		draw_line(quad[0], quad[1], Color(0, 0, 0, 0.18), 2.0, true)
+	if not cast_shadow:
 		return
 	# Contact shadow: the footprint pushed down and spread a little.
 	for i in 4:

@@ -62,7 +62,6 @@ func _draw() -> void:
 		var d := Vector2(cos(a), sin(a))
 		var l := 12.0 if i % 5 == 0 else 6.0
 		draw_line(pivot + d * (rad * 0.86 - l), pivot + d * rad * 0.86, ink, 2.0 if i % 5 == 0 else 1.0)
-	draw_string(font, Vector2(dial.position.x, pivot.y - rad * 0.35), "LINE", HORIZONTAL_ALIGNMENT_CENTER, dial.size.x, Assets.fs(13), Color(ink, 0.6))
 	for e in [[A0, "0"], [A1, str(max_value)]]:
 		var d := Vector2(cos(e[0]), sin(e[0]))
 		draw_string(font, pivot + d * rad * 0.62 + Vector2(-30, 6), e[1], HORIZONTAL_ALIGNMENT_CENTER, 60, Assets.fs(13), Color(ink, 0.75))

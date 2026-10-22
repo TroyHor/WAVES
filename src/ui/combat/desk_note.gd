@@ -24,7 +24,6 @@ func _draw() -> void:
 	var ink := Color("3a3328")
 	var lh := Assets.fs(22) + 10.0
 	var y := 26.0
-	draw_string(font, Vector2(18, y + 8), "值班记录", HORIZONTAL_ALIGNMENT_LEFT, -1, Assets.fs(16), Color(ink, 0.6))
 	y += 22.0
 	while y < size.y - 10:
 		draw_line(Vector2(12, y + 8), Vector2(size.x - 12, y + 8), Color("9cb4c8", 0.5), 1.0)
