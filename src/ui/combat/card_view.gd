@@ -13,6 +13,8 @@ var flipped := false
 var ghost := false
 var _hovered := false
 var _t := randf() * 10.0
+## Resting scale: hand cards are held small, the enlarged card is big.
+var base_scale := 1.0
 
 
 func _init(p_card: CardInstance) -> void:
@@ -23,7 +25,8 @@ func _init(p_card: CardInstance) -> void:
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE if ghost else Control.MOUSE_FILTER_STOP
-	pivot_offset = CARD_SIZE * 0.5
+	# Scale from the bottom centre so held cards grow upward onto the desk.
+	pivot_offset = Vector2(CARD_SIZE.x * 0.5, CARD_SIZE.y)
 	mouse_entered.connect(func() -> void: _hovered = true; queue_redraw())
 	mouse_exited.connect(func() -> void: _hovered = false; queue_redraw())
 
@@ -39,7 +42,7 @@ func _process(delta: float) -> void:
 	_t += delta
 	var target := 0.0 if (_hovered or ghost) else sin(_t * 1.3) * 0.025
 	rotation = lerpf(rotation, target, minf(1.0, delta * 8.0))
-	var s := 1.06 if _hovered and playable and not ghost else 1.0
+	var s := base_scale * (1.12 if _hovered and not ghost else 1.0)
 	scale = scale.lerp(Vector2(s, s), minf(1.0, delta * 12.0))
 
 

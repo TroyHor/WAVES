@@ -2,12 +2,14 @@ extends Control
 ## Combat screen. Owns no rules: every number shown comes from Combat.preview()
 ## or Combat.resolve_turn().
 ##
-## Layout follows docs/art_direction.md §4.1 — the operator's workbench:
+## Layout follows docs/art_direction.md §4.1 — items standing on an oblique desk:
 ##   top:    receiver (observation ports with the enemy, enemy signal screen)
 ##   middle: counter box | main oscilloscope | line-integrity box
 ##   bottom: transmitter (power lamps, your signal screen, fire key)
-##   desk:   intake hopper (draw) · punch cards · output slot (discard)
-## All three wave screens share the same cell columns.
+##   beyond the desk's front edge: the hand of punch cards (small; click to
+##   enlarge), the draw pile on the left and the discard pile on the right.
+## All three wave screens share the same cell columns; spacing uses the
+## InstrumentStyle size tokens.
 ##
 ## Controls: drag a card onto the scopes; right-click / R flips flippable cards;
 ## drag a placed wave off the scopes to take it back; Enter/Space resolves.
@@ -15,9 +17,19 @@ extends Control
 const LAUNCH_SECONDS := 0.45
 const IMPACT_SECONDS := 0.6
 const SHOT_SECONDS := 0.5
-## Side columns beside the main scope (counter box / integrity box).
-const SIDE := 300.0
-const MARGIN := 18.0
+## Width of the side boxes beside the main scope (counter / integrity).
+const SIDE_W := 256.0
+## Desk visible around the instruments (sides / top).
+const MARGIN := 72.0
+const MARGIN_TOP := 56.0
+## Oblique view: the far (top) instrument's case is inset on both sides so the
+## rows read as standing at different depths on the desk. Screens keep their
+## shared columns; only the cases narrow.
+const DEPTH_INSET := 40.0
+## Hand cards are held small below the desk edge; the clicked card is shown
+## enlarged on the desk.
+const HAND_SCALE := 0.72
+const EXPANDED_SCALE := 1.75
 ## Grid inset inside the main scope (name plate on the left, knobs on the right).
 const GRID_INSET_L := 150.0
 const GRID_INSET_R := 110.0
@@ -56,6 +68,13 @@ var _known_hand := {}
 var _last_draw_count := -1
 ## Receiver area left of its screen, in screen coordinates (enemy ports).
 var _enemy_area := Rect2()
+## Y of the desk's front edge (the hand is held below it).
+var _edge_y := 0.0
+## Card shown enlarged on the desk after a click (null when none).
+var _expanded: CardView
+## A card pressed but not yet dragged: release = click (enlarge), move = drag.
+var _press_card: CardInstance
+var _press_pos := Vector2.ZERO
 var _resolve_btn: Button
 var _menu_btn: Button
 var _toast: Label
@@ -189,95 +208,97 @@ func _make_label(font_size: int, color: Color) -> Label:
 func _layout() -> void:
 	var w := size.x
 	var h := size.y
-	var hand_h := CardView.CARD_SIZE.y + 28.0
-	var avail := h - hand_h - MARGIN
-	var gap := 12.0
-	var row_h := maxf(180.0, avail * 0.21)
-	var mid_h := avail - row_h * 2 - gap * 2 - MARGIN
-	var e0 := MARGIN
-	var m0 := e0 + row_h + gap
-	var p0 := m0 + mid_h + gap
+	var G := InstrumentStyle.GAP
+	var IN := InstrumentStyle.WINDOW_INSET
+	_edge_y = h - float(Assets.DESK["edge_from_bottom"])
+	var avail := _edge_y - MARGIN_TOP - G
+	var row_h := maxf(160.0, avail * 0.21)
+	var mid_h := avail - row_h * 2 - G * 2
+	var e0 := MARGIN_TOP
+	var m0 := e0 + row_h + G
+	var p0 := m0 + mid_h + G
+	var x0 := MARGIN
+	var x1 := w - MARGIN
 
-	# Main oscilloscope in the centre column; its grid defines the columns.
-	var main_w := w - SIDE * 2
-	_merged.position = Vector2(SIDE, m0)
+	# Main oscilloscope between the two side boxes; its grid defines the columns.
+	var main_x := x0 + SIDE_W + G
+	var main_w := x1 - SIDE_W - G - main_x
+	_merged.position = Vector2(main_x, m0)
 	_merged.size = Vector2(main_w, mid_h)
 	_merged.grid_x0 = GRID_INSET_L
 	_merged.grid_x1 = main_w - GRID_INSET_R
 	_merged.layout_parts()
-	var gx0 := SIDE + GRID_INSET_L
-	var gx1 := w - SIDE - GRID_INSET_R
+	var gx0 := main_x + GRID_INSET_L
+	var gx1 := main_x + main_w - GRID_INSET_R
 	var sx0 := gx0 - OscilloscopeView.TUBE_MARGIN
 	var sx1 := gx1 + OscilloscopeView.TUBE_MARGIN
 
-	# Receiver (top) and transmitter (bottom) span the bench; their screens
-	# line up with the main tube.
-	for row in [[_receiver, _enemy_screen, e0], [_transmitter, _player_screen, p0]]:
+	# Receiver (top) and transmitter (bottom) share the outer edges x0..x1;
+	# their screens line up with the main tube.
+	for row in [[_receiver, _enemy_screen, e0, DEPTH_INSET], [_transmitter, _player_screen, p0, 0.0]]:
 		var case: InstrumentCase = row[0]
 		var screen: ScopeScreen = row[1]
-		case.position = Vector2(MARGIN, row[2])
-		case.size = Vector2(w - MARGIN * 2, row_h)
-		var win := Rect2(sx0 - MARGIN, 18, sx1 - sx0, row_h - 36)
+		var inset: float = row[3]
+		case.position = Vector2(x0 + inset, row[2])
+		case.size = Vector2(x1 - x0 - inset * 2, row_h)
+		var win := Rect2(sx0 - case.position.x, IN, sx1 - sx0, row_h - IN * 2)
 		case.windows = [win]
 		screen.position = case.position + win.position
 		screen.size = win.size
 		screen.grid_x0 = gx0 - screen.position.x
 		screen.grid_w = gx1 - gx0
-		case.queue_redraw()
-	var right_x := sx1 + 22.0
-	var right_w := w - MARGIN - 18.0 - right_x
+	var right_x := sx1 + G + 6.0
+	var right_w := x1 - IN - right_x
+	var rx_right_w := right_w - DEPTH_INSET
 
-	# Receiver: observation ports on the left, status print on the right.
-	_enemy_area = Rect2(MARGIN + 16, e0 + 12, sx0 - MARGIN - 40, row_h - 24)
-	_receiver.labels = [{"pos": Vector2(right_x - MARGIN, 40), "text": "接收机", "size": 20, "width": right_w, "align": HORIZONTAL_ALIGNMENT_CENTER}]
-	_turn_label.position = Vector2(right_x, e0 + 54)
-	_turn_label.size = Vector2(right_w, 60)
+	# Receiver: observation ports on the left, status print + menu on the right.
+	var rx0 := x0 + DEPTH_INSET
+	_enemy_area = Rect2(rx0 + IN, e0 + IN * 0.5, sx0 - rx0 - IN - G - 6.0, row_h - IN)
+	_receiver.labels = [{"pos": Vector2(right_x - rx0, InstrumentStyle.TITLE_BASELINE), "text": "接收机", "size": 20, "width": rx_right_w, "align": HORIZONTAL_ALIGNMENT_CENTER}]
+	_turn_label.position = Vector2(right_x, e0 + InstrumentStyle.TITLE_BASELINE + 8)
+	_turn_label.size = Vector2(rx_right_w, 60)
 	_turn_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_menu_btn.position = Vector2(right_x + 8, e0 + row_h - 62)
-	_menu_btn.size = Vector2(right_w - 16, 44)
+	_menu_btn.position = Vector2(right_x, e0 + row_h - IN - 44)
+	_menu_btn.size = Vector2(rx_right_w, 44)
 	_layout_enemies(false)
 
 	# Transmitter: power lamps on the left, fire key on the right.
-	_transmitter.labels = [{"pos": Vector2(16, 44), "text": "发射功率", "size": 20, "width": sx0 - MARGIN - 40, "align": HORIZONTAL_ALIGNMENT_CENTER}]
-	_energy.position = Vector2(MARGIN + 24, p0 + 64)
-	_energy.size = Vector2(sx0 - MARGIN - 64, row_h - 96)
-	_resolve_btn.position = Vector2(right_x + 6, p0 + 26)
-	_resolve_btn.size = Vector2(right_w - 12, row_h - 52)
+	var left_w := sx0 - x0 - IN - G - 6.0
+	_transmitter.labels = [{"pos": Vector2(IN, InstrumentStyle.TITLE_BASELINE), "text": "发射功率", "size": 20, "width": left_w, "align": HORIZONTAL_ALIGNMENT_CENTER}]
+	_energy.position = Vector2(x0 + IN, p0 + InstrumentStyle.TITLE_BASELINE + 12)
+	_energy.size = Vector2(left_w, row_h - InstrumentStyle.TITLE_BASELINE - 12 - IN)
+	_resolve_btn.position = Vector2(right_x, p0 + IN)
+	_resolve_btn.size = Vector2(right_w, row_h - IN * 2)
 
-	# Counter box (left) and line-integrity box (right) beside the main scope.
-	var box_w := SIDE - MARGIN - 14.0
-	_counter_box.position = Vector2(MARGIN, m0)
-	_counter_box.size = Vector2(box_w, mid_h)
-	var cwin := Rect2(18, 52, box_w - 36, mid_h - 72)
-	_counter_box.windows = [cwin]
-	_counter_box.labels = [{"pos": Vector2(0, 36), "text": "预计", "size": 20, "width": box_w, "align": HORIZONTAL_ALIGNMENT_CENTER}]
-	var row1 := m0 + cwin.position.y + cwin.size.y * 0.3
-	var row2 := m0 + cwin.position.y + cwin.size.y * 0.72
-	_arrows[0].position = Vector2(MARGIN + 34, row1 - 26)
-	_arrows[1].position = Vector2(MARGIN + 34, row2 - 26)
-	_to_enemy_label.position = Vector2(MARGIN + 96, row1 - Assets.fs(52) * 0.7)
-	_to_player_label.position = Vector2(MARGIN + 96, row2 - Assets.fs(52) * 0.7)
-
-	_integrity.position = Vector2(w - SIDE + 14, m0)
-	_integrity.size = Vector2(box_w, mid_h)
-	var iwin := Rect2(18, 52, box_w - 36, mid_h - 72)
-	_integrity.windows = [iwin]
-	_integrity.labels = [{"pos": Vector2(0, 36), "text": "线路完整度", "size": 20, "width": box_w, "align": HORIZONTAL_ALIGNMENT_CENTER}]
-	var hp_h := minf(iwin.size.y - 24.0, Assets.fs(54) * 2.6)
-	_player_hp.position = _integrity.position + iwin.position + Vector2(16, (iwin.size.y - hp_h) * 0.5)
-	_player_hp.size = Vector2(iwin.size.x - 32, hp_h)
+	# Counter box (left) and line-integrity box (right), aligned to x0 / x1.
+	var box_win := Rect2(IN, InstrumentStyle.TITLE_BASELINE + 16, SIDE_W - IN * 2, mid_h - InstrumentStyle.TITLE_BASELINE - 16 - IN)
+	for box in [[_counter_box, x0, "预计"], [_integrity, x1 - SIDE_W, "线路完整度"]]:
+		var c: InstrumentCase = box[0]
+		c.position = Vector2(box[1], m0)
+		c.size = Vector2(SIDE_W, mid_h)
+		c.windows = [box_win]
+		c.labels = [{"pos": Vector2(0, InstrumentStyle.TITLE_BASELINE), "text": box[2], "size": 20, "width": SIDE_W, "align": HORIZONTAL_ALIGNMENT_CENTER}]
+	var row1 := m0 + box_win.position.y + box_win.size.y * 0.3
+	var row2 := m0 + box_win.position.y + box_win.size.y * 0.72
+	_arrows[0].position = Vector2(x0 + IN + 16, row1 - 26)
+	_arrows[1].position = Vector2(x0 + IN + 16, row2 - 26)
+	_to_enemy_label.position = Vector2(x0 + IN + 76, row1 - Assets.fs(52) * 0.7)
+	_to_player_label.position = Vector2(x0 + IN + 76, row2 - Assets.fs(52) * 0.7)
+	var hp_h := minf(box_win.size.y - 24.0, Assets.fs(54) * 2.6)
+	_player_hp.position = _integrity.position + box_win.position + Vector2(16, (box_win.size.y - hp_h) * 0.5)
+	_player_hp.size = Vector2(box_win.size.x - 32, hp_h)
 	for b in [_counter_box, _integrity, _receiver, _transmitter]:
 		b.queue_redraw()
 
-	# Desk: intake hopper (left), punch cards, output slot (right).
-	var pile_h := 140.0
-	_draw_pile.position = Vector2(MARGIN + 10, h - pile_h - 20)
+	# Beyond the desk edge: draw pile (left), hand (centre), discard (right).
+	var pile_h := minf(140.0, h - _edge_y + 30.0)
+	_draw_pile.position = Vector2(x0 + 8, h - pile_h - 12)
 	_draw_pile.size = Vector2(120, pile_h)
-	_discard_pile.position = Vector2(w - MARGIN - 130, h - pile_h - 20)
+	_discard_pile.position = Vector2(x1 - 128, h - pile_h - 12)
 	_discard_pile.size = Vector2(120, pile_h)
-	_hand_root.position = Vector2(0, h - CardView.CARD_SIZE.y - 14)
-	_hand_root.size = Vector2(w, CardView.CARD_SIZE.y)
-	_toast.position = Vector2(SIDE, m0 + 60)
+	_hand_root.position = Vector2.ZERO
+	_hand_root.size = size
+	_toast.position = Vector2(main_x, m0 + 60)
 	_toast.size = Vector2(main_w, 60)
 	_layout_hand()
 
@@ -298,7 +319,7 @@ func _layout_enemies(animate: bool) -> void:
 		var c := Vector2(area.position.x + rad + 10.0, area.position.y + slot_h * (i + 0.5))
 		ports.append({"center": c - _receiver.position, "radius": rad, "glow": Assets.color(e.data.color_id)})
 		var fig_rect := Rect2(c - Vector2(rad, rad) * 0.85, Vector2(rad, rad) * 1.7)
-		var px := c.x + rad + 20.0
+		var px := c.x + rad + InstrumentStyle.GAP + 4.0
 		var panel_rect := Rect2(px, area.position.y + slot_h * i + 4.0, area.end.x - px, slot_h - 8.0)
 		v["figure"].size = fig_rect.size
 		v["panel"].size = panel_rect.size
@@ -312,13 +333,16 @@ func _layout_enemies(animate: bool) -> void:
 	_receiver.queue_redraw()
 
 
+## Hand cards are held small below the desk edge, bottoms aligned.
 func _layout_hand() -> void:
-	var gap := 14.0
-	var total := _card_views.size() * CardView.CARD_SIZE.x + maxf(0, _card_views.size() - 1) * gap
-	var x := (size.x - total) * 0.5
+	var gap := 10.0
+	var cw := CardView.CARD_SIZE.x * HAND_SCALE
+	var total := _card_views.size() * cw + maxf(0, _card_views.size() - 1) * gap
+	var cx := (size.x - total) * 0.5 + cw * 0.5
 	for v in _card_views:
-		v.position = Vector2(x, 0)
-		x += CardView.CARD_SIZE.x + gap
+		v.base_scale = HAND_SCALE
+		v.position = Vector2(cx - CardView.CARD_SIZE.x * 0.5, size.y - 10.0 - CardView.CARD_SIZE.y)
+		cx += cw + gap
 
 
 ## Rect (screen-local) of a named UI element, for tutorial highlighting.
@@ -352,6 +376,8 @@ func refresh() -> void:
 
 
 func _rebuild_hand() -> void:
+	if _expanded != null and not _expanded.card in combat.deck.hand:
+		_close_expanded()
 	for v in _card_views:
 		v.queue_free()
 	_card_views.clear()
@@ -560,13 +586,47 @@ func _complete_hint(kind: String) -> void:
 
 # --- Input -----------------------------------------------------------------
 
+## Press on a card: it becomes a drag once the mouse moves, or a click
+## (enlarge / shrink) if released in place.
 func _on_card_grabbed(view: CardView) -> void:
-	if _animating or _drag_card != null or not combat.can_play(view.card):
+	if _animating or _drag_card != null:
 		return
-	_start_drag(view.card, view.card.data.wave.size() / 2, false)
+	_press_card = view.card
+	_press_pos = get_global_mouse_position()
+
+
+func _toggle_expanded(card: CardInstance) -> void:
+	var same := _expanded != null and _expanded.card == card
+	_close_expanded()
+	if same:
+		return
+	_expanded = CardView.new(card)
+	_expanded.base_scale = EXPANDED_SCALE
+	_expanded.scale = Vector2.ONE * HAND_SCALE
+	_expanded.playable = combat.can_play(card)
+	_expanded.grabbed.connect(_on_card_grabbed)
+	add_child(_expanded)
+	# Shown on the desk, just above the edge, centred.
+	_expanded.position = Vector2(size.x * 0.5 - CardView.CARD_SIZE.x * 0.5, _edge_y - 6.0 - CardView.CARD_SIZE.y)
+
+
+func _close_expanded() -> void:
+	if _expanded != null:
+		_expanded.queue_free()
+		_expanded = null
+
+
+func _point_on_cards(p: Vector2) -> bool:
+	if _expanded != null and Rect2(_expanded.global_position + _expanded.pivot_offset * (Vector2.ONE - _expanded.scale), CardView.CARD_SIZE * _expanded.scale).has_point(p):
+		return true
+	for v in _card_views:
+		if v.get_global_rect().has_point(p):
+			return true
+	return false
 
 
 func _start_drag(card: CardInstance, grab: int, flipped: bool) -> void:
+	_close_expanded()
 	_drag_card = card
 	_drag_grab = grab
 	_drag_flipped = flipped
@@ -575,6 +635,7 @@ func _start_drag(card: CardInstance, grab: int, flipped: bool) -> void:
 	_drag_ghost.ghost = true
 	_drag_ghost.flipped = flipped
 	_drag_ghost.modulate.a = 0.85
+	_drag_ghost.base_scale = HAND_SCALE
 	add_child(_drag_ghost)
 	_update_drag(get_global_mouse_position())
 	refresh()
@@ -608,7 +669,7 @@ func _end_drag(drop: bool) -> void:
 		if card.data.is_wave_card():
 			if _drag_over:
 				played = combat.play(card, _drag_offset, _drag_flipped)
-		elif get_global_mouse_position().y < _hand_root.global_position.y - 20:
+		elif get_global_mouse_position().y < _edge_y - 20:
 			played = combat.play(card)
 	_drag_card = null
 	if _drag_ghost != null:
@@ -645,6 +706,11 @@ func _input(event: InputEvent) -> void:
 	if _overlay != null:
 		return
 	if event is InputEventMouseMotion:
+		if _press_card != null and event.position.distance_to(_press_pos) > 10.0:
+			var card := _press_card
+			_press_card = null
+			if combat.can_play(card) and not _animating:
+				_start_drag(card, card.data.wave.size() / 2, false)
 		if _drag_card != null:
 			_update_drag(event.position)
 		elif not _animating:
@@ -665,6 +731,8 @@ func _input(event: InputEvent) -> void:
 					combat.set_flipped(p.card, not p.flipped)
 					_refresh_preview()
 		elif event.button_index == MOUSE_BUTTON_LEFT and _drag_card == null and not _animating:
+			if _expanded != null and not _point_on_cards(event.position):
+				_close_expanded()
 			var p := _placed_card_at(event.position)
 			if p != null and combat.can_unplay(p.card):
 				var grab := _cell_at(event.position) - p.offset
@@ -673,7 +741,12 @@ func _input(event: InputEvent) -> void:
 				_start_drag(p.card, grab, flipped)
 				get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if _drag_card != null:
+		if _press_card != null:
+			# Released without moving: a click enlarges (or shrinks) the card.
+			var card := _press_card
+			_press_card = null
+			_toggle_expanded(card)
+		elif _drag_card != null:
 			_end_drag(true)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
@@ -682,6 +755,7 @@ func _input(event: InputEvent) -> void:
 			KEY_ESCAPE:
 				if _drag_card != null:
 					_end_drag(false)
+				_close_expanded()
 			KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 				if _drag_card == null:
 					_resolve()

@@ -46,7 +46,7 @@ static func style_fire_key(b: Button) -> void:
 	var red := Color("c8352b")
 	for state in ["normal", "hover", "pressed", "disabled"]:
 		var box := StyleBoxFlat.new()
-		box.set_corner_radius_all(14)
+		box.set_corner_radius_all(InstrumentStyle.KEY_RADIUS + 4)
 		box.set_border_width_all(3)
 		box.border_color = Color("6e1712")
 		box.shadow_color = Color(0, 0, 0, 0.45)
@@ -71,7 +71,7 @@ static func _box(bg: Color, border: Color) -> StyleBoxFlat:
 	b.bg_color = bg
 	b.border_color = border
 	b.set_border_width_all(2)
-	b.set_corner_radius_all(3)
+	b.set_corner_radius_all(InstrumentStyle.KEY_RADIUS)
 	b.content_margin_left = 18
 	b.content_margin_right = 18
 	b.content_margin_top = 10

@@ -3,6 +3,13 @@ extends Node
 ## To swap in final art, change the paths/colors here (or drop files at these
 ## paths) — no other script should hard-code a res:// asset path.
 
+## The desk scene (art_direction §4.1): the desk's front edge sits this far
+## above the bottom of the screen; below it is the floor where the hand is held.
+const DESK := {
+	"edge_from_bottom": 150.0,
+	"edge_thickness": 34.0,
+}
+
 ## Global UI text scale: every font size in the UI goes through fs().
 const FONT_SCALE := 1.3
 
@@ -13,6 +20,17 @@ const AUDIO_DIR := "res://assets/audio/"
 ## Logical texture ids -> file paths. Missing files fall back to code-drawn placeholders.
 ## Enemy portraits are referenced from data/enemies/*.json ("figure.texture").
 const TEXTURES := {
+	# Scene is split into separate items placed on one desk background
+	# (art_direction §10). Missing files fall back to code-drawn placeholders.
+	"desk_background": ART_DIR + "desk_background.png",
+	"item_receiver": ART_DIR + "item_receiver.png",
+	"item_main_scope": ART_DIR + "item_main_scope.png",
+	"item_transmitter": ART_DIR + "item_transmitter.png",
+	"item_counter": ART_DIR + "item_counter.png",
+	"item_integrity": ART_DIR + "item_integrity.png",
+	"item_hopper": ART_DIR + "item_hopper.png",
+	"item_tray": ART_DIR + "item_tray.png",
+	"card_punch": ART_DIR + "card_punch.png",
 	"card_frame": ART_DIR + "card_frame.png",
 	"player": ART_DIR + "player.png",
 	"enemy_drone": ART_DIR + "enemy_drone.png",

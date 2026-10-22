@@ -28,12 +28,9 @@ func _pop(t: int) -> float:
 func _draw() -> void:
 	var font := get_theme_default_font()
 	var cw := cell_width()
-	var panel := Rect2(grid_x0 - 8, 0, grid_x1 - grid_x0 + 16, size.y)
-	draw_rect(panel, Assets.color("bezel"))
-	draw_rect(panel, Color(0, 0, 0, 0.7), false, 2.0)
-	draw_line(Vector2(panel.position.x, panel.end.y), panel.end, Color(1, 1, 1, 0.2), 1.0)
-	# Label tab for the row captions, printed on the metal case.
-	draw_rect(Rect2(grid_x0 - 80, 0, 66, size.y), Assets.color("bezel"))
+	# Same recessed window and caption plate as every other instrument.
+	InstrumentStyle.draw_window(self, Rect2(grid_x0, 0, grid_x1 - grid_x0, size.y))
+	InstrumentStyle.draw_plate(self, Rect2(grid_x0 - 84, 0, 64, size.y))
 	if highlight_cell >= 0 and highlight_cell < track_length:
 		draw_rect(Rect2(grid_x0 + highlight_cell * cw, 2, cw, size.y - 4), Color(Assets.color("net_wave"), 0.06))
 	for t in range(1, track_length):

@@ -10,6 +10,8 @@ var windows: Array[Rect2] = []
 var ports: Array = []
 ## Silkscreen labels: [{pos: Vector2, text: String, size: float, align?, width?}]
 var labels: Array = []
+## Assets texture id of this item's final art (art_direction §10).
+var texture_id := ""
 var _flash := 0.0
 
 
@@ -30,7 +32,8 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	var font := get_theme_default_font()
-	InstrumentStyle.draw_case(self, Rect2(Vector2.ZERO, size), InstrumentStyle.CASE_RADIUS, _flash)
+	var tex := Assets.texture(texture_id) if texture_id != "" else null
+	InstrumentStyle.draw_case(self, Rect2(Vector2.ZERO, size), InstrumentStyle.CASE_RADIUS, _flash, tex)
 	for w in windows:
 		InstrumentStyle.draw_window(self, w)
 	for p in ports:

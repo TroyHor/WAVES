@@ -55,7 +55,8 @@ func _draw() -> void:
 	draw_rect(Rect2(0, name_fs * 0.2, 8, name_fs * 0.8), col if alive else Color(ink, 0.4))
 	var title := enemy.data.name
 	if multi and alive:
-		title = ("▶ " if is_front else "") + title + ("" if is_front else "（后排）")
+		# Front is marked with ▶; the back twin is just dimmed (no extra text).
+		title = ("▶ " if is_front else "") + title
 	draw_string(font, Vector2(14, name_fs), title, HORIZONTAL_ALIGNMENT_LEFT, size.x - 14, name_fs, ink if alive else Color(ink, 0.45))
 	var intent := "已清除"
 	if alive and enemy.move != null:

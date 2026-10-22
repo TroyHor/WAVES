@@ -97,10 +97,7 @@ func _draw() -> void:
 	# on vintage bench scopes.
 	var plate := Rect2(16, tr.get_center().y - 40, tr.position.x - 40, 80)
 	if plate.size.x > 40:
-		var badge := StyleBoxFlat.new()
-		badge.bg_color = Assets.color("bezel")
-		badge.set_corner_radius_all(6)
-		draw_style_box(badge, plate)
+		InstrumentStyle.draw_plate(self, plate)
 		draw_string(font, Vector2(plate.position.x, plate.position.y + 34), title, HORIZONTAL_ALIGNMENT_CENTER, plate.size.x, Assets.fs(20), Assets.color("plate"))
 		draw_string(font, Vector2(plate.position.x, plate.position.y + 62), "OSC-16", HORIZONTAL_ALIGNMENT_CENTER, plate.size.x, Assets.fs(12), Color(Assets.color("plate"), 0.6))
 	# Two knurled knobs and the power lamp on the right.
@@ -120,14 +117,14 @@ func _draw() -> void:
 
 
 func _draw_case(r: Rect2) -> void:
-	InstrumentStyle.draw_case(self, r)
+	InstrumentStyle.draw_case(self, r, InstrumentStyle.CASE_RADIUS, 0.0, Assets.texture("item_main_scope"))
 
 
 ## Dark recessed surround for the tube (no screws, kept simple).
 func _draw_hood(tr: Rect2) -> void:
 	var hood := StyleBoxFlat.new()
 	hood.bg_color = Assets.color("bezel")
-	hood.set_corner_radius_all(12)
+	hood.set_corner_radius_all(InstrumentStyle.WINDOW_RADIUS + 4)
 	hood.border_color = Color(Assets.color("case_dark"), 1.0)
 	hood.set_border_width_all(3)
 	draw_style_box(hood, tr.grow(12))

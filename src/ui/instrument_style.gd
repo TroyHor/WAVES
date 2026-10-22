@@ -5,19 +5,42 @@ extends RefCounted
 ## observation ports and dark silkscreen print. Every instrument uses these so
 ## the whole screen reads as one set of hardware.
 
+## Size tokens (art_direction §4.1.1) — use these, never ad-hoc numbers.
 const CASE_RADIUS := 16
+const WINDOW_RADIUS := 8
+const KEY_RADIUS := 8
+const PLATE_RADIUS := 6
+const GAP := 24.0
+const WINDOW_INSET := 18.0
+const TITLE_BASELINE := 36.0
+
+
+## An item standing on the desk: a soft contact shadow cast onto the desk
+## below/behind it, so each instrument reads as a separate object.
+static func draw_desk_shadow(ci: CanvasItem, r: Rect2) -> void:
+	for i in 4:
+		var g := 4.0 + i * 6.0
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0, 0, 0, 0.12)
+		sb.set_corner_radius_all(int(CASE_RADIUS + g))
+		ci.draw_style_box(sb, Rect2(r.position + Vector2(-g * 0.5, 10.0 + i * 2.0), r.size + Vector2(g, g * 0.6)))
 
 
 ## Cream plastic shell with drop shadow, soft lower shading and a light lip.
-static func draw_case(ci: CanvasItem, r: Rect2, radius := CASE_RADIUS, flash := 0.0) -> void:
+## If `texture` is given (final art), it is drawn instead of the placeholder.
+static func draw_case(ci: CanvasItem, r: Rect2, radius := CASE_RADIUS, flash := 0.0, texture: Texture2D = null) -> void:
+	draw_desk_shadow(ci, r)
+	if texture != null:
+		ci.draw_texture_rect(texture, r, false, Color.WHITE.lerp(Color(1.4, 1.4, 1.4), flash))
+		return
 	var shell := StyleBoxFlat.new()
 	shell.bg_color = Assets.color("case").lerp(Color.WHITE, flash * 0.5)
 	shell.set_corner_radius_all(radius)
 	shell.border_color = Assets.color("case_edge")
 	shell.set_border_width_all(2)
-	shell.shadow_color = Color(0, 0, 0, 0.5)
-	shell.shadow_size = 12
-	shell.shadow_offset = Vector2(0, 6)
+	shell.shadow_color = Color(0, 0, 0, 0.35)
+	shell.shadow_size = 4
+	shell.shadow_offset = Vector2(0, 3)
 	ci.draw_style_box(shell, r)
 	var shade := StyleBoxFlat.new()
 	shade.bg_color = Color(Assets.color("case_dark"), 0.5)
@@ -28,7 +51,7 @@ static func draw_case(ci: CanvasItem, r: Rect2, radius := CASE_RADIUS, flash := 
 
 
 ## Black recessed window that screens and readouts sit in.
-static func draw_window(ci: CanvasItem, r: Rect2, radius := 8) -> void:
+static func draw_window(ci: CanvasItem, r: Rect2, radius := WINDOW_RADIUS) -> void:
 	var w := StyleBoxFlat.new()
 	w.bg_color = Assets.color("bezel")
 	w.set_corner_radius_all(radius)
@@ -49,6 +72,14 @@ static func draw_round_window(ci: CanvasItem, c: Vector2, radius: float, glow: C
 	ci.draw_circle(c, radius * 0.9, Color(glow, 0.06))
 	# Glass highlight.
 	ci.draw_arc(c, radius * 0.82, PI * 1.1, PI * 1.45, 16, Color(1, 1, 1, 0.18), 3.0, true)
+
+
+## Small black plate (badges, caption tabs).
+static func draw_plate(ci: CanvasItem, r: Rect2) -> void:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Assets.color("bezel")
+	sb.set_corner_radius_all(PLATE_RADIUS)
+	ci.draw_style_box(sb, r)
 
 
 ## Silkscreen label printed on the case.

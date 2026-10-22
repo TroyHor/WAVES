@@ -10,10 +10,11 @@ extends Control
 ##   --runfight  start a new run and jump into its first fight
 ##   --autoresolve  (with --demo) resolve the turn shortly after start
 ##   --shotframes=N  frames to wait before --shot (default 45)
+##   --expandcard  (combat) show the first hand card enlarged
 ##   --selftest  runs tests/ui_smoke.gd through the real input path and quits
 
 const FX_SHADER := preload("res://src/ui/crt/screen_fx.gdshader")
-const DESK_SHADER := preload("res://src/ui/crt/bench_background.gdshader")
+const DESK_SHADER := preload("res://src/ui/crt/desk.gdshader")
 const MenuScreen := preload("res://src/ui/menu_screen.gd")
 const CombatScreen := preload("res://src/ui/combat/combat_screen.gd")
 const RunMapScreen := preload("res://src/ui/run_map_screen.gd")
@@ -26,8 +27,9 @@ var run: RunState
 var tutorial_enabled := true
 
 var _viewport: SubViewport
-## The lab bench every screen sits on (drawn once, behind all screens).
-var _desk: ColorRect
+## The desk every screen sits on (drawn once, behind all screens): the
+## `desk_background` texture when it exists, else the procedural desk shader.
+var _desk: Control
 var _desk_mat: ShaderMaterial
 var _display: TextureRect
 var _crt_material: ShaderMaterial
@@ -51,10 +53,18 @@ func _ready() -> void:
 	_viewport.handle_input_locally = true
 	_viewport.disable_3d = true
 	add_child(_viewport)
-	_desk = ColorRect.new()
-	_desk_mat = ShaderMaterial.new()
-	_desk_mat.shader = DESK_SHADER
-	_desk.material = _desk_mat
+	var desk_tex := Assets.texture("desk_background")
+	if desk_tex != null:
+		var tr := TextureRect.new()
+		tr.texture = desk_tex
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_desk = tr
+	else:
+		_desk = ColorRect.new()
+		_desk_mat = ShaderMaterial.new()
+		_desk_mat.shader = DESK_SHADER
+		_desk.material = _desk_mat
 	_desk.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_viewport.add_child(_desk)
 
@@ -81,6 +91,8 @@ func _ready() -> void:
 		start_combat(_args["encounter"], int(_args.get("seed", randi())))
 	else:
 		show_menu()
+	if _args.has("expandcard") and _screen.has_method("_toggle_expanded"):
+		_screen._toggle_expanded.call_deferred(_screen.combat.deck.hand[0])
 	if _args.has("autoresolve") and _screen.has_method("demo_resolve"):
 		_screen.demo_resolve.call_deferred()
 	if _args.has("shot"):
@@ -182,7 +194,10 @@ func _set_screen(screen: Control) -> void:
 func _on_resized() -> void:
 	_viewport.size = Vector2i(size)
 	_desk.size = size
-	_desk_mat.set_shader_parameter("size_px", size)
+	if _desk_mat != null:
+		_desk_mat.set_shader_parameter("size_px", size)
+		_desk_mat.set_shader_parameter("edge_y", size.y - float(Assets.DESK["edge_from_bottom"]))
+		_desk_mat.set_shader_parameter("edge_h", float(Assets.DESK["edge_thickness"]))
 	_crt_material.set_shader_parameter("source_size", size)
 
 
