@@ -7,22 +7,28 @@ extends Control
 ## perspective (input and effects are mapped through the same homography).
 ##   scope unit (upright, top wider): receiver row (enemy ports + amber
 ##     screen) above the main oscilloscope; "预计" counters in its left column
-##   transmitter (lying on the desk, far edge narrower): power bulbs, your
-##     cyan screen, fire key; line-integrity meter (upright) to its left,
-##     duty note to its right
+##   transmitter (L-shaped): an upright face (power bulbs, your cyan screen,
+##     fire key) on a foot lying on the desk with one card slot per cell;
+##     inserted cards stand in their slots (SlotCards); line-integrity meter
+##     (upright) to its left, duty note to its right
 ##   beyond the desk edge: hand held as a fan, draw pile left, discard right
-## Controls: drag a card onto the scopes; right-click / R flips flippable cards;
-## drag a placed wave off the scopes to take it back; Enter/Space resolves.
+## Controls: drag a card into a slot (or onto the screens); right-click / R
+## flips flippable cards; pull a standing card (or its wave) out to take it
+## back; Enter/Space resolves.
 
 const LAUNCH_SECONDS := 0.45
 const IMPACT_SECONDS := 0.6
 const SHOT_SECONDS := 0.5
 ## Flat face sizes of the devices (their own coordinate spaces).
 const SCOPE_FLAT := Vector2(2000, 900)
-## Transmitter (L-shaped, side view): upright face on top, the horizontal
-## foot with the card slot below it.
-const TX_FLAT := Vector2(1500, 390)
-const TX_FOOT_H := 132.0
+## Transmitter (L-shaped, side view): the upright face, and the horizontal
+## foot with the card slots lying on the desk in front of it.
+const TX_FLAT := Vector2(1500, 205)
+const FOOT_FLAT := Vector2(1500, 300)
+## Share of the transmitter's on-screen height taken by the upright face.
+const TX_FACE_SHARE := 0.52
+## Front lip thickness of the foot (pixels).
+const FOOT_LIP := 14.0
 const GAUGE_FLAT := Vector2(380, 440)
 ## Scope unit face: left column (ports / counters) and right knob strip.
 const SCOPE_LEFT := 400.0
@@ -44,6 +50,7 @@ var tutorial_enabled := true
 
 var _scope_dev: DeskDevice
 var _tx_dev: DeskDevice
+var _foot_dev: DeskDevice
 var _gauge_dev: DeskDevice
 ## Device faces (flat coordinates inside each device).
 var _receiver: InstrumentCase
@@ -54,6 +61,7 @@ var _integrity: InstrumentCase
 var _fire_art: Button
 var _note: DeskNote
 var _slot: SlotBar
+var _slot_cards: SlotCards
 var _prev_energy := -1
 var _enemy_screen: ScopeScreen
 var _player_screen: ScopeScreen
@@ -149,7 +157,11 @@ func _ready() -> void:
 		_arrows.append(arrow)
 
 	_tx_dev = _make_device(TX_FLAT)
+	# Square bottom corners: the face joins the foot there.
+	_tx_dev.radii = Vector4(InstrumentStyle.CASE_RADIUS, InstrumentStyle.CASE_RADIUS, 0, 0)
+	_tx_dev.cast_shadow = false
 	_transmitter = InstrumentCase.new()
+	_transmitter.radii = _tx_dev.radii
 	_transmitter.desk_shadow = false
 	_transmitter.texture_id = "item_transmitter"
 	_transmitter.size = TX_FLAT
@@ -158,15 +170,23 @@ func _ready() -> void:
 	_player_tube = _make_tube(_player_screen, Color(0.01, 0.04, 0.05), _tx_dev.content)
 	_energy = EnergyView.new()
 	_tx_dev.content.add_child(_energy)
-	_slot = SlotBar.new()
-	_slot.track_length = combat.rules.track_length
-	_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_tx_dev.content.add_child(_slot)
 	_fire_art = Button.new()
 	_fire_art.text = "发射"
 	_fire_art.add_theme_font_size_override("font_size", Assets.fs(34))
 	ThemeFactory.style_fire_key(_fire_art)
 	_tx_dev.content.add_child(_fire_art)
+	_foot_dev = _make_device(FOOT_FLAT)
+	_foot_dev.depth = 0.0
+	_foot_dev.front_depth = FOOT_LIP
+	_foot_dev.radii = Vector4(0, 0, InstrumentStyle.CASE_RADIUS, InstrumentStyle.CASE_RADIUS)
+	_slot = SlotBar.new()
+	_slot.track_length = combat.rules.track_length
+	_slot.radii = _foot_dev.radii
+	_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_slot.size = FOOT_FLAT
+	_foot_dev.content.add_child(_slot)
+	_slot_cards = SlotCards.new()
+	add_child(_slot_cards)
 
 	_gauge_dev = _make_device(GAUGE_FLAT)
 	_integrity = InstrumentCase.new()
@@ -249,6 +269,8 @@ func _process(delta: float) -> void:
 	var full := combat.outcome == Combat.Outcome.ONGOING and not _animating \
 		and combat.energy <= 0 and not combat.played.is_empty()
 	_tx_dev.tremble = 1.0 if full else 0.0
+	_foot_dev.tremble = _tx_dev.tremble
+	_slot_cards.position = _foot_dev.jitter()
 	if not full:
 		return
 	_spark_t -= delta
@@ -296,18 +318,27 @@ func _layout() -> void:
 	_scope_dev.set_quad(PackedVector2Array([Vector2(cx - tw * 0.5, y0), Vector2(cx + tw * 0.5, y0),
 		Vector2(cx + bw * 0.5, y1), Vector2(cx - bw * 0.5, y1)]))
 
-	# Transmitter (L-shaped, seen from the front): upright face with the card
-	# slot on its foot, standing in front of the scope unit.
+	# Transmitter (L-shaped): the upright face stands in front of the scope
+	# unit; its foot lies on the desk towards the operator (near edge wider).
 	var t0 := y1 + 22.0
 	var t1 := _edge_y - 8.0
-	var nb := minf(w * 0.62, (t1 - t0) * TX_FLAT.x / TX_FLAT.y)
-	var nt := nb
-	_tx_dev.set_quad(PackedVector2Array([Vector2(cx - nt * 0.5, t0), Vector2(cx + nt * 0.5, t0),
-		Vector2(cx + nb * 0.5, t1), Vector2(cx - nb * 0.5, t1)]))
+	var tm := t0 + (t1 - t0) * TX_FACE_SHARE
+	var nb := minf(w * 0.62, (tm - t0) * TX_FLAT.x / TX_FLAT.y)
+	_tx_dev.set_quad(PackedVector2Array([Vector2(cx - nb * 0.5, t0), Vector2(cx + nb * 0.5, t0),
+		Vector2(cx + nb * 0.5, tm), Vector2(cx - nb * 0.5, tm)]))
+	var fb := nb * 1.05
+	_foot_dev.set_quad(PackedVector2Array([Vector2(cx - nb * 0.5, tm), Vector2(cx + nb * 0.5, tm),
+		Vector2(cx + fb * 0.5, t1 - FOOT_LIP), Vector2(cx - fb * 0.5, t1 - FOOT_LIP)]))
+	var bases := PackedVector2Array()
+	for t in combat.rules.track_length:
+		bases.append(_foot_dev.flat_to_screen(_slot.slit_point(t)) - global_position)
+	_slot_cards.size = size
+	_slot_cards.bases = bases
+	_slot_cards.cell_px = bases[1].x - bases[0].x
 
 	# Line-integrity meter standing at the left, in front of the scope's
 	# lower-left corner, turned a little counter-clockwise (not too tidy).
-	var gx1 := cx - nb * 0.5 - 36.0
+	var gx1 := cx - fb * 0.5 - 30.0
 	var gw := minf(gx1 - 48.0, 300.0)
 	var gh := gw * GAUGE_FLAT.y / GAUGE_FLAT.x
 	var gy1 := _edge_y - 10.0
@@ -320,7 +351,7 @@ func _layout() -> void:
 	_gauge_dev.set_quad(gq)
 
 	# Duty note on the desk to the right of the transmitter.
-	var nx := cx + nb * 0.5 + 40.0
+	var nx := cx + fb * 0.5 + 34.0
 	_note.size = Vector2(minf(w - nx - 48.0, 280.0), 200.0)
 	_note.position = Vector2(nx, t0 - 10.0)
 	_note.pivot_offset = _note.size * 0.5
@@ -363,9 +394,11 @@ func _layout_faces() -> void:
 	_enemy_screen.grid_x0 = gx0 - win.position.x
 	_enemy_screen.grid_w = gx1 - gx0
 	_enemy_area = Rect2(IN, IN * 0.5, win.position.x - IN * 2 - 6.0, SCOPE_RX_H - IN)
-	# "预计" counters in the left column under the ports.
-	var cwin := Rect2(IN * 2, main_rect.position.y + TB + 20, SCOPE_LEFT - IN * 3, main_rect.size.y - TB - 20 - 110)
-	_receiver.labels = [{"pos": Vector2(cwin.position.x, main_rect.position.y + TB), "text": "预计", "size": 20, "width": cwin.size.x, "align": HORIZONTAL_ALIGNMENT_CENTER}]
+	# Preview counters in the left column, their window flush with the tube
+	# hood (hood = tube rect grown by 12; a window draws 6 beyond its rect).
+	var hood_pad := OscilloscopeView.TUBE_PAD_Y - 12.0 + 6.0
+	var cwin := Rect2(IN * 2, main_rect.position.y + hood_pad, SCOPE_LEFT - IN * 3 - 24.0, main_rect.size.y - hood_pad * 2)
+	_receiver.labels = []
 	_receiver.windows.append(cwin)
 	var row1 := cwin.position.y + cwin.size.y * 0.28
 	var row2 := cwin.position.y + cwin.size.y * 0.72
@@ -378,8 +411,8 @@ func _layout_faces() -> void:
 		fc.size = Vector2(cwin.size.x - 106, ctr_h)
 	_layout_enemies(false)
 
-	# --- Transmitter (L): face = bulbs | screen | fire key; foot = card slot.
-	var face_h := TX_FLAT.y - TX_FOOT_H
+	# --- Transmitter face: bulbs | screen | fire key (the foot is _slot).
+	var face_h := TX_FLAT.y
 	var bulbs := Rect2(IN, IN, 110, face_h - IN * 2)
 	var key_w := 210.0
 	var twin := Rect2(bulbs.end.x + IN, IN, TX_FLAT.x - bulbs.end.x - IN * 3 - key_w, face_h - IN * 2)
@@ -395,15 +428,13 @@ func _layout_faces() -> void:
 	_fire_art.position = key.position
 	_fire_art.size = key.size
 	_transmitter.lamps = [{"center": Vector2(key.get_center().x, IN + 20), "on": false, "color": Color("ff4d3a")}]
-	_slot.position = Vector2(0, face_h)
-	_slot.size = Vector2(TX_FLAT.x, TX_FOOT_H)
 	_slot.grid_x0 = twin.position.x + _player_screen.grid_x0
 	_slot.grid_w = _player_screen.grid_w
 
 	# --- Integrity meter.
-	var iwin := Rect2(IN, TB + 16, GAUGE_FLAT.x - IN * 2, GAUGE_FLAT.y - TB - 16 - IN)
+	var iwin := Rect2(IN + 6, IN + 6, GAUGE_FLAT.x - IN * 2 - 12, GAUGE_FLAT.y - IN * 2 - 12)
 	_integrity.windows = [iwin]
-	_integrity.labels = [{"pos": Vector2(0, TB), "text": "线路完整度", "size": 20, "width": GAUGE_FLAT.x, "align": HORIZONTAL_ALIGNMENT_CENTER}]
+	_integrity.labels = []
 	_player_hp.position = iwin.position + Vector2(10, 10)
 	_player_hp.size = iwin.size - Vector2(20, 20)
 	for c in [_receiver, _transmitter, _integrity]:
@@ -491,7 +522,7 @@ func anchor_rect(anchor: String) -> Rect2:
 		"resolve": return _resolve_btn.get_rect()
 		"player_figure": return _gauge_dev.get_rect()
 		"energy": return _tx_dev.flat_rect_to_screen(_energy.get_rect())
-		"slot": return _tx_dev.flat_rect_to_screen(_slot.get_rect())
+		"slot": return _foot_dev.get_rect()
 		"enemy_figure":
 			var front := combat.front_enemy()
 			if front != null:
@@ -514,9 +545,8 @@ func cell_screen_point(t: float) -> Vector2:
 
 
 ## Screen point of a cell's damage readout on the main scope.
-func _readout_screen_point(t: int, to_enemy: bool) -> Vector2:
-	var local := _merged.cell_global(t, to_enemy) - _merged.global_position
-	return _scope_dev.flat_to_screen(_merged.position + local)
+func _readout_screen_point(t: int) -> Vector2:
+	return _scope_dev.flat_to_screen(_merged.position + _merged.readout_local(t))
 
 
 func _figure_screen_center(e: EnemyState) -> Vector2:
@@ -586,8 +616,9 @@ func _animate_discards(played: Array[PlayedCard]) -> void:
 		var v := CardView.new(p.card)
 		v.ghost = true
 		add_child(v)
-		v.global_position = cell_screen_point(p.offset + p.card.data.wave.size() * 0.5 - 0.5) - CardView.CARD_SIZE * 0.5
-		v.scale = Vector2(0.5, 0.5)
+		var cs := _slot_cards.card_scale()
+		v.position = _slot_cards.slot_rect(p.offset).position - v.pivot_offset * (1.0 - cs)
+		v.scale = Vector2.ONE * cs
 		flying.append(v)
 	var delay := 0.0
 	for v in flying:
@@ -650,12 +681,20 @@ func _refresh_preview() -> void:
 		pchans.append({"track": result.player, "color": Assets.color("player_wave"), "width": 3.0})
 	ps.channels = pchans
 	var stubs: Array = []
+	_slot.lit_from = 0
+	_slot.lit_to = 0
 	for p in combat.played:
-		stubs.append({"card": p.card, "offset": p.offset, "wave": p.wave()})
+		stubs.append({"card": p.card, "offset": p.offset, "flipped": p.flipped})
+		if p.card == _hover_card:
+			_slot.lit_from = p.offset
+			_slot.lit_to = p.offset + p.wave().size()
 	if extra != null:
-		stubs.append({"card": extra.card, "offset": extra.offset, "wave": extra.wave(), "ghost": true})
-	_slot.stubs = stubs
-	_slot.hover_uid = _hover_card.uid if _hover_card != null else -1
+		stubs.append({"card": extra.card, "offset": extra.offset, "flipped": extra.flipped, "ghost": true})
+		_slot.lit_from = extra.offset
+		_slot.lit_to = extra.offset + extra.wave().size()
+	_slot_cards.stubs = stubs
+	_slot_cards.hover_uid = _hover_card.uid if _hover_card != null else -1
+	_slot.queue_redraw()
 	ps.tint_track = enemy_track
 	ps.tint_color = Assets.color("enemy_ch1")
 
@@ -792,19 +831,29 @@ func _start_drag(card: CardInstance, grab: int, flipped: bool) -> void:
 	refresh()
 
 
-## Drop area: the transmitter screen or the scope unit's screens.
+## Drop area: the card slots, the transmitter screen or the scope unit's screens.
 func _over_scopes(mouse: Vector2) -> bool:
+	if _over_slots(mouse):
+		return true
 	if _tx_dev.contains_screen(mouse):
 		var f := _tx_dev.screen_to_flat(mouse)
-		return _player_tube.get_rect().grow(10).has_point(f) or _slot.get_rect().has_point(f)
+		return _player_tube.get_rect().grow(10).has_point(f)
 	if _scope_dev.contains_screen(mouse):
 		var f := _scope_dev.screen_to_flat(mouse)
 		return _merged.get_rect().has_point(f) or _enemy_tube.get_rect().has_point(f)
 	return false
 
 
-## Cell under the mouse, read through whichever device it is over.
+## Over the transmitter's foot (its slots) or a card standing in one.
+func _over_slots(mouse: Vector2) -> bool:
+	return _foot_dev.contains_screen(mouse) or _slot_cards.card_at(mouse - _slot_cards.position) != null
+
+
+## Cell under the mouse, read through whichever device it is over (on the
+## foot: the slot under the mouse).
 func _cell_at(mouse: Vector2) -> int:
+	if _foot_dev.contains_screen(mouse):
+		return _slot.cell_at(_foot_dev.screen_to_flat(mouse))
 	if _tx_dev.contains_screen(mouse):
 		var f := _tx_dev.screen_to_flat(mouse) - _player_tube.position
 		var cw := _player_screen.grid_w / combat.rules.track_length
@@ -816,7 +865,9 @@ func _cell_at(mouse: Vector2) -> int:
 func _update_drag(mouse: Vector2) -> void:
 	_drag_over = _over_scopes(mouse)
 	_hover_cell = _cell_at(mouse) if _drag_over else -1
-	_drag_offset = _cell_at(mouse) - _drag_grab
+	# Dropped into a slot, the card starts at that slot; over the screens the
+	# grabbed sample follows the mouse.
+	_drag_offset = _cell_at(mouse) - (0 if _foot_dev.contains_screen(mouse) else _drag_grab)
 	if _drag_ghost != null:
 		_drag_ghost.global_position = mouse - CardView.CARD_SIZE * 0.5
 		# Over the scopes the wave itself is the feedback; hide the card.
@@ -851,16 +902,14 @@ func _toggle_drag_flip() -> void:
 		_refresh_preview()
 
 
-## Placed card under `mouse`: its stub in the card slot, or (on the screens)
-## the wave (or echo) covering that cell.
+## Placed card under `mouse`: the card standing in a slot, or (on the
+## screens) the wave (or echo) covering that cell.
 func _placed_card_at(mouse: Vector2) -> PlayedCard:
-	if not _over_scopes(mouse):
+	var standing := _slot_cards.card_at(mouse - _slot_cards.position)
+	if standing != null:
+		return combat.find_played(standing)
+	if _foot_dev.contains_screen(mouse) or not _over_scopes(mouse):
 		return null
-	if _tx_dev.contains_screen(mouse):
-		var f := _tx_dev.screen_to_flat(mouse)
-		if _slot.get_rect().has_point(f):
-			var c := _slot.stub_at(f - _slot.position)
-			return combat.find_played(c) if c != null else null
 	var cell := _cell_at(mouse)
 	for i in range(combat.played.size() - 1, -1, -1):
 		var p := combat.played[i]
@@ -911,7 +960,9 @@ func _input(event: InputEvent) -> void:
 				_set_hand_open(false)
 			var p := _placed_card_at(event.position)
 			if p != null and combat.can_unplay(p.card):
-				var grab := _cell_at(event.position) - p.offset
+				# Pulled from its slot the card is held by its start; picked
+				# up on a screen, by the sample under the mouse.
+				var grab := 0 if _over_slots(event.position) else _cell_at(event.position) - p.offset
 				var flipped := p.flipped
 				combat.unplay(p.card)
 				_start_drag(p.card, grab, flipped)
@@ -989,7 +1040,7 @@ func _resolve() -> void:
 		if dmg <= 0:
 			continue
 		var to_enemy := r.outcome[t] != TrackResult.Outcome.PLAYER_HIT
-		var from := _readout_screen_point(t, to_enemy)
+		var from := _readout_screen_point(t)
 		var to := _figure_screen_center(report.target) if to_enemy else _gauge_dev.get_global_rect().get_center()
 		var col := Assets.color("damage_to_enemy") if to_enemy else Assets.color("damage_to_player")
 		_fx.shoot(from, to, col, delay, SHOT_SECONDS, 5.0 + dmg * 0.8)

@@ -3,7 +3,8 @@ extends Control
 ## Analog panel meter for line integrity: cream dial with a printed scale, a
 ## needle on a damped spring (swings and overshoots on change), a thin red
 ## ghost needle showing where the previewed damage would leave it, and a digit
-## window underneath with the exact value.
+## window underneath with the exact value (no captions: the ghost needle and
+## the scope's counters already say what the preview costs).
 
 var value := 0
 var max_value := 1
@@ -72,7 +73,7 @@ func _draw() -> void:
 	draw_line(pivot, pivot + Vector2(cos(_angle), sin(_angle)) * rad * 0.92, ink, 3.0, true)
 	draw_circle(pivot, 7.0, ink)
 	draw_circle(pivot, 3.0, Color("8a8478"))
-	# Digit window: exact value, and the previewed loss underneath.
+	# Digit window: exact value.
 	var fs := Assets.fs(40)
 	var y := dial_h + 14 + fs
 	var big := str(value)
@@ -82,5 +83,3 @@ func _draw() -> void:
 	var x := (size.x - bw - sw - 4) * 0.5
 	draw_string(font, Vector2(x, y), big, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, color)
 	draw_string(font, Vector2(x + bw + 4, y), small, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs * 0.5), Color(color, 0.7))
-	if preview_loss > 0:
-		draw_string(font, Vector2(0, y + Assets.fs(26) + 4), "预计 -%d" % preview_loss, HORIZONTAL_ALIGNMENT_CENTER, size.x, Assets.fs(24), Assets.color("damage_to_player"))

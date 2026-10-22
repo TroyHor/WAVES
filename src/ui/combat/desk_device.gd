@@ -16,6 +16,11 @@ var quad := PackedVector2Array()
 var cast_shadow := true
 ## Visible case thickness above the face (pseudo-3D top surface), in pixels.
 var depth := 0.0
+## Visible thickness below the face (front lip of a part lying on the desk).
+var front_depth := 0.0
+## Corner radii of the case outline in flat units: TL, TR, BR, BL. Must match
+## the face's InstrumentCase so the extruded body hugs its rounded corners.
+var radii := Vector4(InstrumentStyle.CASE_RADIUS, InstrumentStyle.CASE_RADIUS, InstrumentStyle.CASE_RADIUS, InstrumentStyle.CASE_RADIUS)
 var _vp: SubViewport
 var _tex: TextureRect
 var _mat: ShaderMaterial
@@ -110,6 +115,11 @@ func flat_rect_to_screen(r: Rect2) -> Rect2:
 	return Rect2(lo, hi - lo)
 
 
+## Current shake / tremble displacement (for things drawn with the device).
+func jitter() -> Vector2:
+	return position - _base_pos
+
+
 ## Short damped tremble (e.g. the transmitter when power is full).
 func shake(amount: float) -> void:
 	_shake = maxf(_shake, amount)
@@ -133,23 +143,74 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if quad.size() < 4:
 		return
-	if depth > 0.0:
-		# Top surface of the case, receding upward and slightly inward.
-		var inset := depth * 0.6
-		var top := PackedVector2Array([quad[0], quad[1], quad[1] + Vector2(-inset, -depth), quad[0] + Vector2(inset, -depth)])
-		draw_colored_polygon(top, Assets.color("case").lightened(0.1))
-		draw_line(top[3], top[2], Color(Assets.color("case_edge"), 0.9), 2.0, true)
-		draw_line(quad[0], quad[1], Color(0, 0, 0, 0.18), 2.0, true)
-	if not cast_shadow:
-		return
-	# Contact shadow: the footprint pushed down and spread a little.
-	for i in 4:
-		var g := 6.0 + i * 7.0
-		var pts := PackedVector2Array()
+	var outline := _outline()
+	if cast_shadow:
+		# Contact shadow: the footprint pushed down and spread a little.
 		var c := (quad[0] + quad[1] + quad[2] + quad[3]) * 0.25
-		for q in quad:
-			pts.append(c + (q - c) * (1.0 + g / maxf(size.x, 1.0)) + Vector2(0, 10.0 + i * 3.0))
-		draw_colored_polygon(pts, Color(0, 0, 0, 0.11))
+		for i in 4:
+			var g := 6.0 + i * 7.0
+			var pts := PackedVector2Array()
+			for q in outline:
+				pts.append(c + (q - c) * (1.0 + g / maxf(size.x, 1.0)) + Vector2(0, 10.0 + front_depth + i * 3.0))
+			draw_colored_polygon(pts, Color(0, 0, 0, 0.11))
+	var case_col := Assets.color("case")
+	if depth > 0.0:
+		# Top surface: the rounded outline swept upward (camera slightly above),
+		# lit from above — brighter at the far edge.
+		_extrude(outline, -depth, case_col.lightened(0.16), case_col.lightened(0.03))
+	if front_depth > 0.0:
+		# Front lip: the outline swept downward, in shade.
+		_extrude(outline, front_depth, Assets.color("case_dark").darkened(0.18), Assets.color("case_dark"))
+
+
+## Fills the body swept by `outline` moving `dy` pixels: the convex hull of the
+## outline and its shifted copy (exact for convex rounded shapes, so the
+## extrusion follows the face's rounded corners without seams). Colour runs
+## from `far` (fully shifted side) to `near` (the face).
+func _extrude(outline: PackedVector2Array, dy: float, far: Color, near: Color) -> void:
+	var pts := PackedVector2Array(outline)
+	for p in outline:
+		pts.append(p + Vector2(0, dy))
+	var hull := Geometry2D.convex_hull(pts)
+	if hull.size() > 1 and hull[0] == hull[hull.size() - 1]:
+		hull.remove_at(hull.size() - 1)
+	if hull.size() < 3:
+		return
+	var y_face := 0.0
+	var y_far := 0.0
+	var lo := INF
+	var hi := -INF
+	for p in outline:
+		lo = minf(lo, p.y)
+		hi = maxf(hi, p.y)
+	y_face = lo if dy < 0.0 else hi
+	y_far = y_face + dy
+	var cols := PackedColorArray()
+	for p in hull:
+		cols.append(near.lerp(far, clampf((p.y - y_face) / (y_far - y_face), 0.0, 1.0)))
+	draw_polygon(hull, cols)
+	var closed := hull.duplicate()
+	closed.append(hull[0])
+	draw_polyline(closed, Color(Assets.color("case_edge"), 0.55), 1.5, true)
+
+
+## The face's rounded outline in local pixels (corners from `radii`).
+func _outline() -> PackedVector2Array:
+	var f := flat_size
+	var corners := [
+		[Vector2(radii.x, radii.x), radii.x, PI],
+		[Vector2(f.x - radii.y, radii.y), radii.y, PI * 1.5],
+		[Vector2(f.x - radii.z, f.y - radii.z), radii.z, 0.0],
+		[Vector2(radii.w, f.y - radii.w), radii.w, PI * 0.5],
+	]
+	var out := PackedVector2Array()
+	for c in corners:
+		var r: float = c[1]
+		var steps := 8 if r > 0.0 else 1
+		for k in steps:
+			var a: float = c[2] + PI * 0.5 * k / maxf(1.0, steps - 1)
+			out.append(_apply(_h, (c[0] + Vector2(cos(a), sin(a)) * r) / f))
+	return out
 
 
 # --- Homography helpers (3x3 row-major arrays) -------------------------------

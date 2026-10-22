@@ -16,6 +16,8 @@ var lamps: Array = []
 var texture_id := ""
 ## False when the case is a device face (the DeskDevice casts the shadow).
 var desk_shadow := true
+## Corner radii TL, TR, BR, BL (negative = CASE_RADIUS); see draw_case.
+var radii := Vector4(-1, -1, -1, -1)
 var _flash := 0.0
 
 
@@ -37,7 +39,7 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var font := get_theme_default_font()
 	var tex := Assets.texture(texture_id) if texture_id != "" else null
-	InstrumentStyle.draw_case(self, Rect2(Vector2.ZERO, size), InstrumentStyle.CASE_RADIUS, _flash, tex, desk_shadow)
+	InstrumentStyle.draw_case(self, Rect2(Vector2.ZERO, size), InstrumentStyle.CASE_RADIUS, _flash, tex, desk_shadow, radii)
 	for w in windows:
 		InstrumentStyle.draw_window(self, w)
 	for p in ports:

@@ -1,96 +1,68 @@
 class_name SlotBar
 extends Control
-## The foot of the L-shaped transmitter: a horizontal surface with a card slot
-## running under the screen. Each inserted punch card shows only its bottom
-## strip (its waveform) at the cells it occupies; cards whose cells overlap are
-## stacked in rows. Stubs can be dragged along the slot (move), pulled out
-## (take back) or right-clicked (flip) — handled by the combat screen via
-## stub_at().
+## Face of the transmitter's foot (the horizontal leg of the L), laid out flat
+## and shown lying on the desk by its DeskDevice. One card slot per cell, in
+## the same columns as the transmitter screen above: a card inserted in slot t
+## plays its wave from cell t to the right. The cards themselves stand in the
+## slots and are drawn by SlotCards (screen space); this only draws the
+## surface and the slits, lighting the slits a wave covers.
 
 var track_length := 16
 ## Grid start / width in local coordinates (same columns as the screen above).
 var grid_x0 := 0.0
 var grid_w := 100.0
-## [{card: CardInstance, offset: int, wave: PackedInt32Array, ghost: bool}]
-var stubs: Array = []
-var hover_uid := -1
-## Computed in _draw: [{rect: Rect2, card: CardInstance}]
-var _hits: Array = []
+## Depth of the slit row on the foot (0 = far edge, 1 = near edge).
+var slit_depth := 0.8
+## Corner radii (TL, TR, BR, BL), matching the foot's DeskDevice.
+var radii := Vector4(0, 0, InstrumentStyle.CASE_RADIUS, InstrumentStyle.CASE_RADIUS)
+## Cells whose slits glow (the span of the hovered / dragged wave), [from, to).
+var lit_from := 0
+var lit_to := 0
 
 
 func cell_width() -> float:
 	return grid_w / track_length
 
 
-## Placed card whose stub covers local point `p` (null if none).
-func stub_at(p: Vector2) -> CardInstance:
-	for i in range(_hits.size() - 1, -1, -1):
-		if _hits[i]["rect"].has_point(p):
-			return _hits[i]["card"]
-	return null
+## Slot under local point `p` (may be out of range).
+func cell_at(p: Vector2) -> int:
+	return floori((p.x - grid_x0) / cell_width())
 
 
-func _process(_delta: float) -> void:
-	queue_redraw()
+## Left end of slot t's slit (local): a standing card's bottom-left corner.
+func slit_point(t: int) -> Vector2:
+	return Vector2(grid_x0 + t * cell_width() + 4.0, size.y * slit_depth)
 
 
 func _draw() -> void:
-	var font := get_theme_default_font()
 	var r := Rect2(Vector2.ZERO, size)
-	# Top surface of the foot (lit from above) with a darker front lip.
-	draw_rect(r, Assets.color("case").lightened(0.06))
-	draw_rect(Rect2(0, size.y - 14, size.x, 14), Assets.color("case_dark"))
-	draw_line(Vector2(0, size.y - 14), Vector2(size.x, size.y - 14), Color(1, 1, 1, 0.5), 1.0)
-	draw_line(Vector2(0, 1), Vector2(size.x, 1), Color(0, 0, 0, 0.25), 2.0)
-	# The slot itself.
-	var slot := Rect2(grid_x0 - 10, 12, grid_w + 20, size.y - 34)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color("16130f")
-	sb.set_corner_radius_all(InstrumentStyle.PLATE_RADIUS)
-	draw_style_box(sb, slot)
+	InstrumentStyle.draw_case(self, r, InstrumentStyle.CASE_RADIUS, 0.0, null, false, radii)
+	# Shade where the upright face meets the foot.
+	for i in 6:
+		draw_rect(Rect2(0, i * 6.0, size.x, 6.0), Color(0, 0, 0, 0.1 * (1.0 - i / 6.0)))
 	var cw := cell_width()
-	for t in range(1, track_length):
+	var y := size.y * slit_depth
+	var lamp := Assets.color("energy")
+	for t in track_length:
+		var slit := Rect2(grid_x0 + t * cw + 4.0, y - 9.0, cw - 8.0, 18.0)
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color("16130f")
+		sb.set_corner_radius_all(6)
+		draw_style_box(sb, slit)
+		# Catch-light on the near lip of the slit.
+		draw_line(Vector2(slit.position.x + 4, slit.end.y + 2), Vector2(slit.end.x - 4, slit.end.y + 2), Color(1, 1, 1, 0.45), 2.0)
+		if t >= lit_from and t < lit_to:
+			draw_style_box(_glow(lamp), slit.grow(3))
+	# Column marks every 4 cells, like the major divisions on the screen.
+	for t in range(0, track_length + 1, 4):
 		var x := grid_x0 + t * cw
-		draw_line(Vector2(x, slot.position.y + 3), Vector2(x, slot.end.y - 3), Color(1, 1, 1, 0.05), 1.0)
-	# Row assignment: greedy, earliest offset first.
-	var order := stubs.duplicate()
-	order.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["offset"] < b["offset"])
-	var row_ends: Array[int] = []
-	var rows_of := {}
-	for st in order:
-		var placed := false
-		for ri in row_ends.size():
-			if row_ends[ri] <= st["offset"]:
-				row_ends[ri] = st["offset"] + st["wave"].size()
-				rows_of[st] = ri
-				placed = true
-				break
-		if not placed:
-			rows_of[st] = row_ends.size()
-			row_ends.append(st["offset"] + st["wave"].size())
-	var n_rows := maxi(1, row_ends.size())
-	var row_h := (slot.size.y - 6) / n_rows
-	_hits.clear()
-	for st in order:
-		var ri: int = rows_of[st]
-		var x0: float = grid_x0 + st["offset"] * cw
-		var w: float = st["wave"].size() * cw
-		var rect := Rect2(x0 + 2, slot.position.y + 3 + ri * row_h, w - 4, row_h - 3)
-		var card: CardInstance = st["card"]
-		var hovered := card.uid == hover_uid
-		var a := 0.55 if st.get("ghost", false) else 1.0
-		draw_rect(rect, Color(PunchCard.PAPER.lightened(0.05 if hovered else 0.0), a))
-		draw_rect(rect, Color(Assets.color("energy") if hovered else PunchCard.INK, (0.9 if hovered else 0.4) * a), false, 2.0 if hovered else 1.0)
-		# Samples sit at their cell centres so the strip lines up with the screen.
-		var wave: PackedInt32Array = st["wave"]
-		var m := 6.0
-		for v in wave:
-			m = maxf(m, absf(v))
-		var pts := PackedVector2Array()
-		for i in wave.size():
-			pts.append(Vector2(x0 + (i + 0.5) * cw, rect.get_center().y - wave[i] / m * rect.size.y * 0.4))
-		if pts.size() > 1:
-			draw_polyline(pts, Color(PunchCard.WAVE_INK, a), 2.4, true)
-		for p in pts:
-			draw_circle(p, 2.6, Color(PunchCard.WAVE_INK, a))
-		_hits.append({"rect": rect, "card": card})
+		draw_line(Vector2(x, y + 22), Vector2(x, y + 40), Color(Assets.color("case_print"), 0.5), 2.0)
+
+
+static func _glow(col: Color) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(col, 0.0)
+	sb.border_color = Color(col, 0.8)
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(8)
+	return sb

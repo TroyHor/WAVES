@@ -42,16 +42,9 @@ func _draw() -> void:
 		var x := bar.position.x + bar.size.x * i / max_value
 		draw_line(Vector2(x, bar.position.y), Vector2(x, bar.end.y), Assets.color("background"), 2.0)
 	draw_rect(bar, Assets.color("panel_border"), false, 2.0)
-	# Big current value, small max; previewed loss blinks on the right.
+	# Big current value, small max (the previewed loss is the blinking ghost).
 	var tc := color if text_color.a == 0.0 else text_color
 	var big := str(value)
 	draw_string(font, Vector2(0, fsz), big, HORIZONTAL_ALIGNMENT_LEFT, -1, fsz, tc)
 	var bw := font.get_string_size(big, HORIZONTAL_ALIGNMENT_LEFT, -1, fsz).x
 	draw_string(font, Vector2(bw + 4, fsz), "/%d" % max_value, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fsz * 0.6), Color(tc, 0.7))
-	if preview_loss > 0:
-		var loss_fs := int(fsz * 0.7)
-		if size.y >= bar.end.y + loss_fs + 6:
-			# Room below the bar: put the previewed loss there (no overlap).
-			draw_string(font, Vector2(0, bar.end.y + loss_fs + 4), "预计 -%d" % preview_loss, HORIZONTAL_ALIGNMENT_RIGHT, size.x, loss_fs, Assets.color("damage_to_player"))
-		else:
-			draw_string(font, Vector2(0, fsz), "-%d" % preview_loss, HORIZONTAL_ALIGNMENT_RIGHT, size.x, int(fsz * 0.85), Assets.color("damage_to_player"))

@@ -28,27 +28,40 @@ static func draw_desk_shadow(ci: CanvasItem, r: Rect2) -> void:
 
 ## Cream plastic shell with drop shadow, soft lower shading and a light lip.
 ## If `texture` is given (final art), it is drawn instead of the placeholder.
-static func draw_case(ci: CanvasItem, r: Rect2, radius := CASE_RADIUS, flash := 0.0, texture: Texture2D = null, desk_shadow := true) -> void:
+## `radii` (TL, TR, BR, BL; negative = `radius`) lets device faces square off
+## the corners where two parts of one instrument join. Device faces
+## (`desk_shadow` false) fill their whole flat rect, so they skip the drop
+## shadow too: the DeskDevice draws shadow and thickness around them.
+static func draw_case(ci: CanvasItem, r: Rect2, radius := CASE_RADIUS, flash := 0.0, texture: Texture2D = null, desk_shadow := true, radii := Vector4(-1, -1, -1, -1)) -> void:
 	if desk_shadow:
 		draw_desk_shadow(ci, r)
 	if texture != null:
 		ci.draw_texture_rect(texture, r, false, Color.WHITE.lerp(Color(1.4, 1.4, 1.4), flash))
 		return
+	var rd := Vector4(radius if radii.x < 0 else radii.x, radius if radii.y < 0 else radii.y,
+		radius if radii.z < 0 else radii.z, radius if radii.w < 0 else radii.w)
 	var shell := StyleBoxFlat.new()
 	shell.bg_color = Assets.color("case").lerp(Color.WHITE, flash * 0.5)
-	shell.set_corner_radius_all(radius)
-	shell.border_color = Assets.color("case_edge")
-	shell.set_border_width_all(2)
-	shell.shadow_color = Color(0, 0, 0, 0.35)
-	shell.shadow_size = 4
-	shell.shadow_offset = Vector2(0, 3)
+	shell.corner_radius_top_left = int(rd.x)
+	shell.corner_radius_top_right = int(rd.y)
+	shell.corner_radius_bottom_right = int(rd.z)
+	shell.corner_radius_bottom_left = int(rd.w)
+	shell.corner_detail = 12
+	shell.anti_aliasing = true
+	if desk_shadow:
+		shell.border_color = Assets.color("case_edge")
+		shell.set_border_width_all(2)
+		shell.shadow_color = Color(0, 0, 0, 0.35)
+		shell.shadow_size = 4
+		shell.shadow_offset = Vector2(0, 3)
 	ci.draw_style_box(shell, r)
 	var shade := StyleBoxFlat.new()
 	shade.bg_color = Color(Assets.color("case_dark"), 0.5)
-	shade.corner_radius_bottom_left = radius
-	shade.corner_radius_bottom_right = radius
-	ci.draw_style_box(shade, Rect2(r.position.x + 2, r.get_center().y, r.size.x - 4, r.size.y * 0.5 - 2))
-	ci.draw_line(Vector2(r.position.x + radius, r.position.y + 3), Vector2(r.end.x - radius, r.position.y + 3), Color(1, 1, 1, 0.55), 2.0)
+	shade.corner_radius_bottom_left = int(rd.w)
+	shade.corner_radius_bottom_right = int(rd.z)
+	var ins := 2.0 if desk_shadow else 0.0
+	ci.draw_style_box(shade, Rect2(r.position.x + ins, r.get_center().y, r.size.x - ins * 2, r.size.y * 0.5 - ins))
+	ci.draw_line(Vector2(r.position.x + rd.x, r.position.y + 3), Vector2(r.end.x - rd.y, r.position.y + 3), Color(1, 1, 1, 0.55), 2.0)
 
 
 ## Black recessed window that screens and readouts sit in.

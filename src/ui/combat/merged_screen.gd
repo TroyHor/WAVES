@@ -5,6 +5,10 @@ extends Control
 ## player sum and the net result — with per-cell strength bars. Smooth curves;
 ## values at each cell are exact. Fields are pushed by MergedView.
 
+## Height of the per-cell damage-number row at the bottom of the tube
+## (blue = to the enemy, red = to you, "=" = cancelled).
+const READOUT_H := 52.0
+
 var track_length := 16
 ## Grid start and width in local coordinates (set by OscilloscopeView).
 var grid_x0 := 26.0
@@ -28,7 +32,12 @@ var _t := 0.0
 
 
 func graph_rect() -> Rect2:
-	return Rect2(grid_x0, 14, grid_w, size.y - 28)
+	return Rect2(grid_x0, 14, grid_w, size.y - 28 - READOUT_H)
+
+
+## Baseline-centre of cell t's damage number (local).
+func readout_point(t: int) -> Vector2:
+	return Vector2(cell_center_x(t), size.y - 14 - READOUT_H * 0.5)
 
 
 func cell_width() -> float:
@@ -134,10 +143,32 @@ func _draw() -> void:
 		draw_polyline(pts, Color(1, 1, 1, a * 0.55), 1.6, true)
 		WaveDraw.pulses(self, pts, Color(1, 1, 1, a * 0.5), 3.0, _t, 2, 0.3)
 
+	_draw_readout(font, cw)
 	if reveal > 0.95:
 		_draw_particles(g, cw, y_of)
 	if impact > 0.01:
 		_draw_impact(cy)
+
+
+## Per-cell damage numbers in the bottom row, popping in left to right.
+func _draw_readout(font: Font, cw: float) -> void:
+	for t in track_length:
+		var p := _pop(t)
+		var fs := Assets.fs(30 * p)
+		if fs < 6:
+			continue
+		var txt := str(result.damage[t])
+		var col := Assets.color("damage_to_enemy")
+		match result.outcome[t]:
+			TrackResult.Outcome.PLAYER_HIT:
+				col = Assets.color("damage_to_player")
+			TrackResult.Outcome.CANCELLED:
+				txt = "="
+				col = Assets.color("cancelled")
+		if result.damage[t] == 0 and txt != "=":
+			continue
+		var c := readout_point(t)
+		draw_string(font, Vector2(c.x - cw * 0.5, c.y + fs * 0.35), txt, HORIZONTAL_ALIGNMENT_CENTER, cw, fs, col.lightened(0.15))
 
 
 ## One coloured section of a cell's strength bar, from value a to b.
@@ -163,6 +194,8 @@ func _draw_graticule(g: Rect2, cw: float, cy: float, scale: float, font: Font) -
 	for i in range(-4, 5):
 		var y := cy + i * g.size.y * 0.46 / 4.0
 		draw_line(Vector2(g.position.x, y), Vector2(g.end.x, y), major if i % 2 == 0 else line, 1.0)
+	# The readout row below the graph.
+	draw_line(Vector2(g.position.x, g.end.y + 6), Vector2(g.end.x, g.end.y + 6), major, 1.0)
 	var axis := Color(Assets.color("graticule"), 0.45)
 	draw_line(Vector2(g.position.x, cy), Vector2(g.end.x, cy), axis, 1.5)
 	for k in range(track_length * 5 + 1):
