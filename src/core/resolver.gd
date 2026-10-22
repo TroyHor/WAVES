@@ -27,9 +27,14 @@ static func resolve_track(enemy: PackedInt32Array, player: PackedInt32Array, ove
 	var n := enemy.size()
 	r.outcome.resize(n)
 	r.damage.resize(n)
+	r.blocked.resize(n)
 	for t in n:
 		var e := enemy[t]
 		var net := r.net[t]
+		# Blocked = the part of the enemy wave an opposite-sign player wave cancels.
+		if e != 0 and signi(player[t]) == -signi(e):
+			r.blocked[t] = mini(absi(e), absi(player[t]))
+			r.blocked_total += r.blocked[t]
 		var outcome := TrackResult.Outcome.EMPTY
 		var dmg := 0
 		if e != 0:

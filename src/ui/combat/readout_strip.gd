@@ -30,14 +30,17 @@ func _draw() -> void:
 	var cw := cell_width()
 	var panel := Rect2(grid_x0 - 8, 0, grid_x1 - grid_x0 + 16, size.y)
 	draw_rect(panel, Assets.color("bezel"))
-	draw_rect(panel, Color(Assets.color("case_edge"), 0.8), false, 2.0)
+	draw_rect(panel, Color(0, 0, 0, 0.7), false, 2.0)
+	draw_line(Vector2(panel.position.x, panel.end.y), panel.end, Color(1, 1, 1, 0.2), 1.0)
+	# Label tab for the row captions, printed on the metal case.
+	draw_rect(Rect2(grid_x0 - 80, 0, 66, size.y), Assets.color("bezel"))
 	if highlight_cell >= 0 and highlight_cell < track_length:
 		draw_rect(Rect2(grid_x0 + highlight_cell * cw, 2, cw, size.y - 4), Color(Assets.color("net_wave"), 0.06))
 	for t in range(1, track_length):
 		var x := grid_x0 + t * cw
 		draw_line(Vector2(x, 6), Vector2(x, size.y - 6), Color(Assets.color("grid"), 0.8), 1.0)
-	draw_string(font, Vector2(grid_x0 - 64, 28), "→敌", HORIZONTAL_ALIGNMENT_LEFT, -1, Assets.fs(18), Assets.color("damage_to_enemy"))
-	draw_string(font, Vector2(grid_x0 - 64, size.y - 10), "←我", HORIZONTAL_ALIGNMENT_LEFT, -1, Assets.fs(18), Assets.color("damage_to_player"))
+	draw_string(font, Vector2(grid_x0 - 74, 28), "→敌", HORIZONTAL_ALIGNMENT_LEFT, -1, Assets.fs(18), Assets.color("damage_to_enemy"))
+	draw_string(font, Vector2(grid_x0 - 74, size.y - 10), "←我", HORIZONTAL_ALIGNMENT_LEFT, -1, Assets.fs(18), Assets.color("damage_to_player"))
 	if result == null:
 		return
 	for t in track_length:

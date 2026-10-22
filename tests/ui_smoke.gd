@@ -10,7 +10,8 @@ var _failures := PackedStringArray()
 func run(app: Node) -> int:
 	_app = app
 	app.start_combat("01_drone", 1)
-	await _frames(5)
+	# Let the opening hand finish flying in from the draw pile.
+	await _app.get_tree().create_timer(1.2).timeout
 	var screen: Control = app.current_screen()
 	var combat: Combat = screen.combat
 
@@ -45,7 +46,7 @@ func run(app: Node) -> int:
 	var expected_hp := enemy.hp - combat.preview().to_enemy
 	var expected_player := combat.player_hp - combat.preview().to_player
 	_key(KEY_ENTER)
-	await _app.get_tree().create_timer(3.0).timeout
+	await _app.get_tree().create_timer(4.0).timeout
 	_check(combat.turn == 2, "turn advanced after resolving (turn=%d)" % combat.turn)
 	_check(enemy.hp == expected_hp, "enemy HP matches the preview (%d == %d)" % [enemy.hp, expected_hp])
 	_check(combat.player_hp == expected_player, "player HP matches the preview")

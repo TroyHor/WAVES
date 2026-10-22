@@ -90,39 +90,76 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var font := get_theme_default_font()
 	var full := Rect2(Vector2.ZERO, size)
-	# Case.
-	draw_rect(full, Assets.color("case"))
-	draw_rect(full, Assets.color("case_edge"), false, 3.0)
-	draw_rect(full.grow(-6), Color(Assets.color("case_edge"), 0.35), false, 1.0)
-	# Bezel around the tube.
 	var tr := tube_rect()
-	draw_rect(tr.grow(8), Assets.color("bezel"))
-	draw_rect(tr.grow(8), Color(Assets.color("case_edge"), 0.8), false, 2.0)
-	draw_rect(tr.grow(3), Color(0, 0, 0, 0.6), false, 3.0)
-	# Screws.
-	for p in [Vector2(12, 12), Vector2(size.x - 12, 12), Vector2(12, size.y - 12), Vector2(size.x - 12, size.y - 12)]:
-		draw_circle(p, 4.0, Assets.color("knob"))
-		draw_line(p - Vector2(3, 0), p + Vector2(3, 0), Assets.color("bezel"), 1.5)
-	# Name plate (left of the tube).
-	var plate := Rect2(14, tr.get_center().y - 34, tr.position.x - 34, 68)
-	if plate.size.x > 30:
-		draw_rect(plate, Color(Assets.color("plate"), 0.12))
-		draw_rect(plate, Color(Assets.color("plate"), 0.35), false, 1.0)
-		draw_string(font, Vector2(plate.position.x, plate.position.y + 28), title, HORIZONTAL_ALIGNMENT_CENTER, plate.size.x, Assets.fs(18), accent)
-		draw_string(font, Vector2(plate.position.x, plate.position.y + 52), "OSC-16", HORIZONTAL_ALIGNMENT_CENTER, plate.size.x, Assets.fs(13), Color(Assets.color("plate"), 0.6))
-	# Knobs and LED (right of the tube).
-	var kx := tr.end.x + 20
+	_draw_case(full)
+	_draw_hood(tr)
+	# Name plate on the left: black label with light print, like the badge
+	# on vintage bench scopes.
+	var plate := Rect2(16, tr.get_center().y - 40, tr.position.x - 40, 80)
+	if plate.size.x > 40:
+		var badge := StyleBoxFlat.new()
+		badge.bg_color = Assets.color("bezel")
+		badge.set_corner_radius_all(6)
+		draw_style_box(badge, plate)
+		draw_string(font, Vector2(plate.position.x, plate.position.y + 34), title, HORIZONTAL_ALIGNMENT_CENTER, plate.size.x, Assets.fs(20), Assets.color("plate"))
+		draw_string(font, Vector2(plate.position.x, plate.position.y + 62), "OSC-16", HORIZONTAL_ALIGNMENT_CENTER, plate.size.x, Assets.fs(12), Color(Assets.color("plate"), 0.6))
+	# Two knurled knobs and the power lamp on the right.
+	var kx := tr.end.x + 26
 	var kw := size.x - kx - 14
 	if kw > 40:
-		var labels := ["V/DIV", "T/DIV"]
+		var rad := minf(kw * 0.34, 26.0)
+		var labels := ["亮度", "聚焦"]
 		for i in 2:
 			var c := Vector2(kx + kw * 0.5, tr.position.y + tr.size.y * (0.3 + 0.42 * i))
-			var rad := minf(kw * 0.32, 20.0)
-			draw_circle(c, rad + 3, Assets.color("bezel"))
-			draw_circle(c, rad, Assets.color("knob"))
-			var ang := -2.2 + i * 1.3 + sin(_t * 0.3 + i) * 0.05
-			draw_line(c, c + Vector2(cos(ang), sin(ang)) * rad * 0.85, Assets.color("plate"), 2.0)
-			draw_string(font, Vector2(kx, c.y + rad + 16), labels[i], HORIZONTAL_ALIGNMENT_CENTER, kw, Assets.fs(11), Color(Assets.color("plate"), 0.5))
-		var led := Vector2(kx + kw * 0.5, 14 + 6)
-		draw_circle(led, 8, Color(accent, 0.18))
-		draw_circle(led, 4, accent)
+			_draw_knob(c, rad, -2.3 + i * 1.4)
+			draw_string(font, Vector2(kx - 8, c.y + rad + Assets.fs(12) + 4), labels[i], HORIZONTAL_ALIGNMENT_CENTER, kw + 16, Assets.fs(10), Assets.color("case_print"))
+		var led := Vector2(kx + kw * 0.5, tr.position.y + 6)
+		draw_circle(led, 9, Color(accent, 0.25))
+		draw_circle(led, 5, accent)
+		draw_circle(led + Vector2(-1.5, -1.5), 1.5, Color(1, 1, 1, 0.8))
+
+
+## Cream moulded plastic: rounded shell with a soft top-to-bottom shade, a
+## light upper lip and a darker lower edge. Deliberately plain.
+func _draw_case(r: Rect2) -> void:
+	var shell := StyleBoxFlat.new()
+	shell.bg_color = Assets.color("case")
+	shell.set_corner_radius_all(16)
+	shell.border_color = Assets.color("case_edge")
+	shell.set_border_width_all(2)
+	shell.shadow_color = Color(0, 0, 0, 0.45)
+	shell.shadow_size = 10
+	shell.shadow_offset = Vector2(0, 5)
+	draw_style_box(shell, r)
+	# Soft shading toward the bottom of the shell.
+	var shade := StyleBoxFlat.new()
+	shade.bg_color = Color(Assets.color("case_dark"), 0.55)
+	shade.set_corner_radius_all(16)
+	shade.corner_radius_top_left = 0
+	shade.corner_radius_top_right = 0
+	draw_style_box(shade, Rect2(r.position.x + 2, r.get_center().y, r.size.x - 4, r.size.y * 0.5 - 2))
+	draw_line(Vector2(r.position.x + 16, r.position.y + 3), Vector2(r.end.x - 16, r.position.y + 3), Color(1, 1, 1, 0.55), 2.0)
+
+
+## Dark recessed surround for the tube (no screws, kept simple).
+func _draw_hood(tr: Rect2) -> void:
+	var hood := StyleBoxFlat.new()
+	hood.bg_color = Assets.color("bezel")
+	hood.set_corner_radius_all(12)
+	hood.border_color = Color(Assets.color("case_dark"), 1.0)
+	hood.set_border_width_all(3)
+	draw_style_box(hood, tr.grow(12))
+	draw_rect(tr.grow(3), Color(0, 0, 0, 0.8), false, 3.0)
+
+
+## Knurled black knob with a brushed silver cap and an indicator line.
+func _draw_knob(c: Vector2, rad: float, angle: float) -> void:
+	draw_circle(c + Vector2(2, 3), rad + 2, Color(0, 0, 0, 0.35))
+	draw_circle(c, rad, Assets.color("knob"))
+	for k in 28:
+		var a := TAU * k / 28.0
+		var d := Vector2(cos(a), sin(a))
+		draw_line(c + d * rad * 0.82, c + d * rad, Color(1, 1, 1, 0.12), 1.5)
+	draw_circle(c, rad * 0.58, Assets.color("knob_cap"))
+	draw_circle(c - Vector2(rad, rad) * 0.15, rad * 0.3, Color(1, 1, 1, 0.25))
+	draw_line(c, c + Vector2(cos(angle), sin(angle)) * rad * 0.55, Assets.color("knob"), 2.5)

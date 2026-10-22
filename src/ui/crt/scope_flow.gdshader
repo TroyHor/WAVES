@@ -1,22 +1,27 @@
 shader_type canvas_item;
-// Ink-green flowing-wave backdrop inside the main oscilloscope tube: two
-// warped wave fields whose sum is drawn as soft drifting phosphor bands, like
-// persistence trails on an old analogue scope. Sits behind the traces.
+// Glass of the main oscilloscope tube, behind the traces: deep green CRT
+// phosphor with a brighter rim (light leaking at the curved edge, strongest at
+// the bottom like a real tube), a faint residual glow in the middle and a very
+// slow, barely visible phosphor shimmer so the screen feels alive.
 
-uniform vec4 base_color : source_color = vec4(0.012, 0.055, 0.035, 1.0);
-uniform vec4 band_color : source_color = vec4(0.04, 0.20, 0.12, 1.0);
-uniform vec4 glow_color : source_color = vec4(0.10, 0.30, 0.18, 1.0);
-uniform float speed = 0.08;
+uniform vec4 deep_color : source_color = vec4(0.01, 0.06, 0.04, 1.0);
+uniform vec4 mid_color : source_color = vec4(0.03, 0.14, 0.09, 1.0);
+uniform vec4 rim_color : source_color = vec4(0.12, 0.42, 0.24, 1.0);
 uniform float aspect = 4.0;
+uniform float shimmer = 0.05;
 
 void fragment() {
-	vec2 p = (UV - 0.5) * vec2(aspect, 1.0) * 2.4;
-	float t = TIME * speed;
-	float a = sin(p.x * 1.5 + sin(p.y * 2.2 + t * 2.3) * 1.3 + t * 3.0);
-	float b = sin(p.y * 3.1 + sin(p.x * 0.7 - t * 1.7) * 1.6 - t * 2.4);
-	float f = a + b;
-	float bands = smoothstep(0.6, 1.0, abs(sin(f * 2.4)));
-	vec3 col = mix(base_color.rgb, band_color.rgb, bands * 0.3);
-	col += glow_color.rgb * smoothstep(1.3, 2.0, f) * 0.1;
+	vec2 c = (UV - 0.5) * vec2(aspect, 1.0);
+	float centre = 1.0 - smoothstep(0.0, aspect * 0.55, length(c * vec2(0.7, 1.6)));
+	vec3 col = mix(deep_color.rgb, mid_color.rgb, centre);
+	// Rim light: distance to the edge, boosted along the bottom.
+	vec2 e = min(UV, 1.0 - UV);
+	float edge = min(e.x * aspect, e.y);
+	float rim = (1.0 - smoothstep(0.0, 0.12, edge)) * (0.55 + 0.45 * smoothstep(0.4, 1.0, UV.y));
+	col = mix(col, rim_color.rgb, rim * 0.6);
+	// Slow phosphor shimmer.
+	float t = TIME * 0.07;
+	float f = sin(c.x * 2.2 + sin(c.y * 3.0 + t * 2.0) * 1.2 + t * 3.0) + sin(c.y * 4.0 - t * 2.4);
+	col += mid_color.rgb * smoothstep(0.8, 2.0, f) * shimmer * 4.0;
 	COLOR = vec4(col, 1.0);
 }

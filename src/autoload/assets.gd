@@ -45,7 +45,9 @@ const SCREEN_FX := {
 
 ## CRT tube inside each bench oscilloscope (src/ui/crt/tube.gdshader).
 const TUBE := {
-	"curvature": 0.05,
+	"curvature": 0.07,
+	"reflection": 0.08,
+	"corner_radius": 22.0,
 	"scanline_strength": 0.16,
 	"glow": 0.5,
 	"vignette": 0.35,
@@ -72,17 +74,24 @@ const COLORS := {
 	"enemy_ch3": Color("ff5ce1"),
 	"player_wave": Color("4fd8ff"),
 	"net_wave": Color("d8ffe9"),
-	"damage_to_enemy": Color("6dff8a"),
+	# Your damage to the enemy is blue everywhere (bars, readout, particles).
+	"damage_to_enemy": Color("4f8cff"),
 	"damage_to_player": Color("ff4d4d"),
 	"cancelled": Color("9fb8ad"),
 	"energy": Color("ffd23f"),
 	"disabled": Color("2a4a3a"),
-	# Bench oscilloscope case.
-	"case": Color("1a201c"),
-	"case_edge": Color("39463e"),
+	# Bench oscilloscope: cream/off-white moulded plastic case.
+	"case": Color("e4dccb"),
+	"case_dark": Color("c9c0ab"),
+	"case_edge": Color("9d947f"),
+	"case_print": Color("5a5446"),
 	"bezel": Color("0c110e"),
-	"knob": Color("2b332e"),
-	"plate": Color("c9bf9a"),
+	"knob": Color("1d1d1c"),
+	"knob_cap": Color("c9c7c0"),
+	"plate": Color("e9e3cf"),
+	# CRT phosphor (P31 green) for the result trace and the etched graticule.
+	"phosphor": Color("8dffb4"),
+	"graticule": Color("a8f0c8"),
 }
 
 

@@ -10,11 +10,25 @@ uniform float glow = 0.5;
 uniform float vignette = 0.35;
 uniform vec4 glass_tint : source_color = vec4(0.02, 0.05, 0.035, 1.0);
 uniform vec2 tube_size = vec2(1400.0, 160.0);
+// Curved-glass reflection (soft diagonal sheen + bright upper edge).
+uniform float reflection = 0.08;
+// Rounded tube corners, in pixels.
+uniform float corner_radius = 22.0;
 
 vec2 barrel(vec2 uv) {
 	vec2 c = uv * 2.0 - 1.0;
 	c *= (1.0 + curvature * dot(c, c)) / (1.0 + curvature);
 	return c * 0.5 + 0.5;
+}
+
+float corner_mask(vec2 uv01) {
+	vec2 p = uv01 * tube_size;
+	vec2 q = min(p, tube_size - p);
+	if (q.x >= corner_radius || q.y >= corner_radius) {
+		return 1.0;
+	}
+	float d = length(vec2(corner_radius) - q);
+	return 1.0 - smoothstep(corner_radius - 1.5, corner_radius + 0.5, d);
 }
 
 void fragment() {
@@ -36,6 +50,12 @@ void fragment() {
 		vec2 e = uv * (1.0 - uv);
 		col *= pow(clamp(e.x * e.y * 30.0, 0.0, 1.0), vignette);
 		col = mix(glass_tint.rgb, col, smoothstep(0.0, 0.012, min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y))));
+		// Glass: a soft diagonal sheen across the upper-left and a thin bright
+		// line just under the top edge where the curved glass catches light.
+		float sheen = smoothstep(0.55, 0.0, UV.x * 0.35 + UV.y) * reflection;
+		float lip = smoothstep(0.06, 0.0, abs(UV.y - 0.04)) * reflection * 0.8;
+		col += vec3(sheen + lip);
 		COLOR = vec4(col, 1.0);
 	}
+	COLOR = mix(glass_tint, COLOR, corner_mask(UV));
 }

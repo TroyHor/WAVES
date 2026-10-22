@@ -16,8 +16,12 @@ var net: PackedInt32Array
 var outcome: PackedInt32Array
 ## Damage dealt by each cell (to whichever side `outcome` says).
 var damage: PackedInt32Array
+## How much of the enemy's wave the player cancelled in each cell (0..|E|).
+## Amplifying the enemy (same sign) blocks nothing.
+var blocked: PackedInt32Array
 
 var to_player := 0
 var to_enemy := 0
 var overflow_damage := 0
 var perfect_cancels := 0
+var blocked_total := 0

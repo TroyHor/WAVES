@@ -48,6 +48,9 @@ var _draw_pile: PileIcon
 var _discard_pile: PileIcon
 var _bg_mat: ShaderMaterial
 var _arrows: Array[ArrowIcon] = []
+## Card uids that were in hand at the last rebuild (new ones fly in from the pile).
+var _known_hand := {}
+var _last_draw_count := -1
 var _enemy_row := Rect2()
 var _resolve_btn: Button
 var _menu_btn: Button
@@ -232,7 +235,8 @@ func _layout() -> void:
 	var pile_h := minf(140.0, h - piles_y - 14)
 	_draw_pile.position = Vector2(24, piles_y)
 	_draw_pile.size = Vector2(120, pile_h)
-	_discard_pile.position = Vector2(170, piles_y)
+	# Discard pile bottom-right, like Slay the Spire; the hand sits between.
+	_discard_pile.position = Vector2(w - 150, h - pile_h - 72)
 	_discard_pile.size = Vector2(120, pile_h)
 
 	_hand_root.position = Vector2(0, h - CardView.CARD_SIZE.y - 14)
@@ -277,7 +281,7 @@ func _layout_enemies(animate: bool) -> void:
 func _layout_hand() -> void:
 	var gap := 14.0
 	var total := _card_views.size() * CardView.CARD_SIZE.x + maxf(0, _card_views.size() - 1) * gap
-	var x := LEFT_COL + (size.x - LEFT_COL - total) * 0.5
+	var x := LEFT_COL + (size.x - LEFT_COL - 170.0 - total) * 0.5
 	for v in _card_views:
 		v.position = Vector2(x, 0)
 		x += CardView.CARD_SIZE.x + gap
@@ -325,6 +329,65 @@ func _rebuild_hand() -> void:
 		_hand_root.add_child(v)
 		_card_views.append(v)
 	_layout_hand()
+	_animate_draws()
+
+
+## Cards that just entered the hand fly in from the draw pile, staggered.
+## A reshuffle (draw pile grew) first streams card backs discard -> draw.
+func _animate_draws() -> void:
+	var draw_count := combat.deck.draw_pile.size()
+	var delay := 0.0
+	if _last_draw_count >= 0 and draw_count > _last_draw_count:
+		for i in 6:
+			_fx.shoot(_discard_pile.get_global_rect().get_center(), _draw_pile.get_global_rect().get_center(),
+				Assets.color("text_dim"), i * 0.04, 0.35, 7.0)
+		delay = 0.3
+	_last_draw_count = draw_count
+	var from := _draw_pile.get_global_rect().get_center() - _hand_root.global_position - CardView.CARD_SIZE * 0.5
+	var known := {}
+	for v in _card_views:
+		known[v.card.uid] = true
+		if _known_hand.has(v.card.uid):
+			continue
+		var target := v.position
+		v.position = from
+		v.scale = Vector2(0.3, 0.3)
+		v.rotation = -0.4
+		create_tween().tween_property(v, "position", target, 0.35).set_delay(delay) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		delay += 0.07
+	_known_hand = known
+
+
+## End of turn: remaining hand and the played cards fly into the discard pile.
+func _animate_discards(played: Array[PlayedCard]) -> void:
+	var to := _discard_pile.get_global_rect().get_center() - CardView.CARD_SIZE * 0.5
+	var flying: Array[CardView] = []
+	for v in _card_views:
+		var gp := v.global_position
+		_hand_root.remove_child(v)
+		add_child(v)
+		v.global_position = gp
+		flying.append(v)
+	_card_views.clear()
+	for p in played:
+		var v := CardView.new(p.card)
+		v.ghost = true
+		add_child(v)
+		var x := _merged.global_position.x + _merged.cell_center_x(p.offset + p.card.data.wave.size() * 0.5)
+		v.global_position = Vector2(x, _merged.global_position.y + _merged.size.y * 0.4) - CardView.CARD_SIZE * 0.5
+		v.scale = Vector2(0.5, 0.5)
+		flying.append(v)
+	var delay := 0.0
+	for v in flying:
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.ghost = true
+		var tw := create_tween().set_parallel(true)
+		tw.tween_property(v, "global_position", to, 0.35).set_delay(delay).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		tw.tween_property(v, "modulate:a", 0.0, 0.2).set_delay(delay + 0.2)
+		tw.chain().tween_callback(v.queue_free)
+		delay += 0.05
+	_known_hand = {}
 
 
 func _drag_played_card() -> PlayedCard:
@@ -599,6 +662,7 @@ func _resolve() -> void:
 	if _hint != null:
 		return  # an unanswered hint must be dismissed first
 	var shown_player_hp := combat.player_hp
+	var played_before: Array[PlayedCard] = combat.played.duplicate()
 	var report := combat.resolve_turn()
 	var r := report.result
 	_animating = true
@@ -670,6 +734,9 @@ func _resolve() -> void:
 		msgs.append("双子交换位置！")
 	if not msgs.is_empty():
 		_show_toast("  ·  ".join(msgs))
+	if combat.outcome == Combat.Outcome.ONGOING:
+		_animate_discards(played_before)
+		await get_tree().create_timer(0.45).timeout
 	_animating = false
 	refresh()
 	if combat.outcome != Combat.Outcome.ONGOING:

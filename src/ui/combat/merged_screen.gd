@@ -75,72 +75,146 @@ func _draw() -> void:
 	var x_of := func(t: int) -> float: return cell_center_x(t)
 
 
-	if result != null:
-		for t in track_length:
-			if result.enemy[t] != 0:
-				draw_rect(Rect2(g.position.x + t * cw, g.position.y, cw, g.size.y), Color(_enemy_color_at(t), 0.06))
 	if highlight_cell >= 0 and highlight_cell < track_length:
-		draw_rect(Rect2(g.position.x + highlight_cell * cw, g.position.y, cw, g.size.y), Color(Assets.color("net_wave"), 0.06))
-
-	for t in range(track_length + 1):
-		var x := g.position.x + t * cw
-		draw_line(Vector2(x, g.position.y), Vector2(x, g.end.y), Assets.color("grid_major") if t % 4 == 0 else Assets.color("grid"), 1.0)
-	for i in range(-2, 3):
-		var y := cy + i * g.size.y * 0.46 / 2.0
-		draw_line(Vector2(g.position.x, y), Vector2(g.end.x, y), Assets.color("grid_major") if i == 0 else Assets.color("grid"), 2.0 if i == 0 else 1.0)
-		if i != 0:
-			draw_string(font, Vector2(g.position.x + 6, y - 4), "%+.0f" % (-i * scale / 2.0), HORIZONTAL_ALIGNMENT_LEFT, -1, Assets.fs(14), Assets.color("text_dim"))
+		draw_rect(Rect2(g.position.x + highlight_cell * cw, g.position.y, cw, g.size.y), Color(Assets.color("graticule"), 0.06))
+	_draw_graticule(g, cw, cy, scale, font)
 
 	if result == null:
 		return
 
-	# Residual bars (strength per cell), popping in left to right.
+	# Strength bars built on the enemy's original wave in each cell:
+	# grey = cancelled, red = still hits you, blue = your damage to the enemy.
+	var grey := Color(Assets.color("cancelled"), 0.28)
+	var red := Color(Assets.color("damage_to_player"), 0.32)
+	var blue := Color(Assets.color("damage_to_enemy"), 0.3)
 	for t in track_length:
-		var net := result.net[t]
-		if net == 0:
-			continue
 		var p := _pop(t)
 		if p <= 0.0:
 			continue
-		var col := _outcome_color(result.outcome[t])
-		var y0: float = y_of.call(0.0)
-		var y1: float = lerpf(y0, y_of.call(float(net)), p)
-		var bar := Rect2(cell_center_x(t) - cw * 0.31, minf(y0, y1), cw * 0.62, absf(y1 - y0))
-		draw_rect(bar, Color(col, 0.26))
-		draw_rect(bar, Color(col, 0.75), false, 1.5)
+		var e := float(result.enemy[t])
+		var n := float(result.net[t])
+		match result.outcome[t]:
+			TrackResult.Outcome.PLAYER_HIT:
+				if absf(n) <= absf(e):
+					_bar(t, n, e, grey, p, y_of)
+				_bar(t, 0.0, n, red, p, y_of)
+			TrackResult.Outcome.CANCELLED:
+				_bar(t, 0.0, e, grey, p, y_of)
+			TrackResult.Outcome.OVERFLOW:
+				_bar(t, 0.0, e, grey, p, y_of)
+				_bar(t, 0.0, n, blue, p, y_of)
+			TrackResult.Outcome.ENEMY_HIT:
+				_bar(t, 0.0, n, blue, p, y_of)
 
+	# Input waves stay faint so the phosphor result reads first.
 	var in_off := (1.0 - arrive) * g.size.y * 0.9
-	var in_alpha := clampf(arrive * 1.4, 0.0, 1.0) * (1.0 - merge * 0.55)
-	# Enemy channels arrive from above.
+	var in_alpha := clampf(arrive * 1.4, 0.0, 1.0) * (0.45 - merge * 0.2)
 	for ch in enemy_channels:
 		var col: Color = ch["color"]
 		var pts := WaveDraw.smooth_points(ch["track"], 0, track_length - 1, x_of, func(v: float) -> float: return y_of.call(v) - in_off)
-		WaveDraw.trace(self, pts, Color(col, in_alpha), 3.0)
-		WaveDraw.pulses(self, pts, Color(col, in_alpha * 0.8), 3.0, _t, 2, 0.22)
+		WaveDraw.trace(self, pts, Color(col, in_alpha), 2.4)
 	if enemy_channels.size() > 1 and not enemy_sum.is_empty():
 		var pts := WaveDraw.smooth_points(enemy_sum, 0, track_length - 1, x_of, func(v: float) -> float: return y_of.call(v) - in_off)
-		WaveDraw.trace(self, pts, Color(Assets.color("enemy_ch1").lerp(Assets.color("enemy_ch3"), 0.5), in_alpha * 0.6), 1.6, true)
-	# The player's combined wave arrives from below.
+		WaveDraw.trace(self, pts, Color(Assets.color("enemy_ch1").lerp(Assets.color("enemy_ch3"), 0.5), in_alpha * 0.8), 1.6, true)
 	var pcol := Assets.color("player_wave")
 	for part in player_parts:
 		var from: int = maxi(0, part["from"])
 		var to: int = mini(track_length - 1, part["to"])
 		var pts := WaveDraw.smooth_points(part["track"], from, to, x_of, func(v: float) -> float: return y_of.call(v) + in_off)
-		WaveDraw.trace(self, pts, Color(pcol, in_alpha), 3.0)
-		WaveDraw.pulses(self, pts, Color(pcol, in_alpha * 0.8), 3.0, _t + 0.5, 2, 0.22)
+		WaveDraw.trace(self, pts, Color(pcol, in_alpha), 2.4)
 
-	# Net result.
+	# Net result as a bright phosphor trace with a wide bloom and a hot core.
 	if reveal > 0.0:
 		var a := clampf(reveal * 1.5, 0.0, 1.0)
+		var ph := Assets.color("phosphor")
 		var pts := WaveDraw.smooth_points(result.net, 0, track_length - 1, x_of, y_of)
-		WaveDraw.trace(self, pts, Color(Assets.color("net_wave"), a), 4.2)
-		WaveDraw.pulses(self, pts, Color(Assets.color("net_wave"), a), 4.2, _t, 3, 0.3)
-		for t in track_length:
-			if result.net[t] != 0:
-				draw_circle(Vector2(x_of.call(t), y_of.call(float(result.net[t]))), 4.0 * _pop(t), Assets.color("net_wave"))
+		draw_polyline(pts, Color(ph, a * 0.05), 40.0, true)
+		draw_polyline(pts, Color(ph, a * 0.1), 20.0, true)
+		WaveDraw.trace(self, pts, Color(ph, a), 4.5)
+		draw_polyline(pts, Color(1, 1, 1, a * 0.55), 1.6, true)
+		WaveDraw.pulses(self, pts, Color(1, 1, 1, a * 0.5), 3.0, _t, 2, 0.3)
 
+	if reveal > 0.95:
+		_draw_particles(g, cw, y_of)
 	if impact > 0.01:
 		_draw_impact(cy)
+
+
+## One coloured section of a cell's strength bar, from value a to b.
+func _bar(t: int, a: float, b: float, col: Color, pop: float, y_of: Callable) -> void:
+	if is_equal_approx(a, b):
+		return
+	var cw := cell_width()
+	var ya: float = y_of.call(a * pop)
+	var yb: float = y_of.call(b * pop)
+	var r := Rect2(cell_center_x(t) - cw * 0.3, minf(ya, yb), cw * 0.6, absf(yb - ya))
+	draw_rect(r, col)
+	draw_rect(r, Color(col, minf(1.0, col.a * 1.8)), false, 1.2)
+
+
+## Etched graticule: fine lines per cell, major divisions, centre axes with
+## minor ticks, like the engraved overlay on a real CRT.
+func _draw_graticule(g: Rect2, cw: float, cy: float, scale: float, font: Font) -> void:
+	var line := Color(Assets.color("graticule"), 0.16)
+	var major := Color(Assets.color("graticule"), 0.3)
+	for t in range(track_length + 1):
+		var x := g.position.x + t * cw
+		draw_line(Vector2(x, g.position.y), Vector2(x, g.end.y), major if t % 4 == 0 else line, 1.0)
+	for i in range(-4, 5):
+		var y := cy + i * g.size.y * 0.46 / 4.0
+		draw_line(Vector2(g.position.x, y), Vector2(g.end.x, y), major if i % 2 == 0 else line, 1.0)
+	var axis := Color(Assets.color("graticule"), 0.45)
+	draw_line(Vector2(g.position.x, cy), Vector2(g.end.x, cy), axis, 1.5)
+	for k in range(track_length * 5 + 1):
+		var x := g.position.x + k * cw / 5.0
+		draw_line(Vector2(x, cy - 4), Vector2(x, cy + 4), axis, 1.0)
+	for i: int in [-4, -2, 2, 4]:
+		var y := cy + i * g.size.y * 0.46 / 4.0
+		draw_string(font, Vector2(g.position.x + 6, y - 4), "%+.0f" % (-i * scale / 4.0), HORIZONTAL_ALIGNMENT_LEFT, -1, Assets.fs(13), Color(Assets.color("graticule"), 0.5))
+
+
+static func _hash(x: float) -> float:
+	return fposmod(sin(x * 12.9898) * 43758.5453, 1.0)
+
+
+## Ambient interference particles (stateless: derived from time + cell):
+## blue sparks rise from your damage toward the enemy, red drips fall from
+## damage that will hit you, grey glints twinkle where waves cancel.
+func _draw_particles(g: Rect2, cw: float, y_of: Callable) -> void:
+	for t in track_length:
+		var dmg := result.damage[t]
+		var o := result.outcome[t]
+		var base_y: float = y_of.call(float(result.net[t]))
+		if dmg > 0 and o != TrackResult.Outcome.PLAYER_HIT:
+			_stream(t, mini(2 + dmg, 9), base_y, -1.0, g, cw, Assets.color("damage_to_enemy"))
+		elif dmg > 0:
+			_stream(t, mini(2 + dmg, 9), base_y, 1.0, g, cw, Assets.color("damage_to_player"))
+		var blocked := result.blocked[t]
+		if blocked > 0:
+			var y0: float = y_of.call(0.0)
+			var y1: float = y_of.call(float(result.enemy[t]))
+			for i in mini(1 + blocked, 6):
+				var seed := t * 31.7 + i * 7.3
+				var tw := 0.5 + 0.5 * sin(_t * (3.0 + _hash(seed) * 4.0) + seed)
+				var p := Vector2(cell_center_x(t) + (_hash(seed + 1.0) - 0.5) * cw * 0.55, lerpf(y0, y1, _hash(seed + 2.0)))
+				var col := Color(Assets.color("cancelled"), 0.55 * tw)
+				draw_line(p - Vector2(3, 0), p + Vector2(3, 0), col, 1.5)
+				draw_line(p - Vector2(0, 3), p + Vector2(0, 3), col, 1.5)
+
+
+## A column of particles drifting from `start_y` (dir -1 = up, +1 = down).
+func _stream(t: int, count: int, start_y: float, dir: float, g: Rect2, cw: float, col: Color) -> void:
+	var travel := g.size.y * 0.42
+	for i in count:
+		var seed := t * 17.3 + i * 3.1
+		var phase := fposmod(_t * (0.35 + _hash(seed) * 0.3) + _hash(seed + 5.0), 1.0)
+		var x := cell_center_x(t) + (_hash(seed + 1.0) - 0.5) * cw * 0.5 + sin(phase * 6.0 + seed) * 3.0
+		var y := start_y + dir * phase * travel
+		if y < g.position.y or y > g.end.y:
+			continue
+		var a := (1.0 - phase) * 0.85
+		draw_circle(Vector2(x, y), 4.5 * (1.0 - phase * 0.5), Color(col, a * 0.25))
+		draw_circle(Vector2(x, y), 2.0 * (1.0 - phase * 0.5), Color(col, a))
 
 
 ## Smooth expanding rings where waves cancelled (no jagged sparks).
@@ -156,7 +230,7 @@ func _draw_impact(cy: float) -> void:
 		var c := Vector2(cell_center_x(t), cy)
 		var k := 1.0 - impact
 		var rad := 6.0 + k * (18.0 + cancelled * 6.0)
-		draw_arc(c, rad, 0, TAU, 32, Color(Assets.color("net_wave"), impact * 0.9), 2.5, true)
+		draw_arc(c, rad, 0, TAU, 32, Color(Assets.color("phosphor"), impact * 0.9), 2.5, true)
 		draw_arc(c, rad * 0.6, 0, TAU, 24, Color(Assets.color("energy"), impact * 0.6), 2.0, true)
 
 

@@ -120,3 +120,17 @@ func test_opposing_wave_swing_is_linear_with_ratio_one() -> void:
 		var p := -signi(e) * rng.randi_range(0, 12)
 		var r := Resolver.resolve_track(PackedInt32Array([e]), PackedInt32Array([p]))
 		assert_eq(r.to_enemy - r.to_player, absi(p) - absi(e), "E=%d P=%d" % [e, p])
+
+
+func test_blocked_breakdown() -> void:
+	# partial block, overflow, amplify, gap, perfect cancel
+	var r := Resolver.resolve_track(PackedInt32Array([4, 4, 3, 0, -2]), PackedInt32Array([-2, -6, 2, 5, 2]))
+	assert_eq(r.blocked, [2, 4, 0, 0, 2])
+	assert_eq(r.blocked_total, 8)
+
+
+func test_blocked_plus_hit_equals_enemy_when_opposing() -> void:
+	# On a cell where P opposes E: blocked + damage to player == |E| (unless overflowing).
+	for p in range(0, 5):
+		var r := Resolver.resolve_track(PackedInt32Array([4]), PackedInt32Array([-p]))
+		assert_eq(r.blocked[0] + (r.damage[0] if r.outcome[0] == TrackResult.Outcome.PLAYER_HIT else 0), 4, "P=-%d" % p)
