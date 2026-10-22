@@ -31,4 +31,4 @@ func _draw() -> void:
 		else:
 			var closed := pts.duplicate()
 			closed.append(pts[0])
-			draw_polyline(closed, Color(col, 0.35), 2.0, true)
+			draw_polyline(closed, Color(Assets.color("case_print"), 0.45), 2.0, true)

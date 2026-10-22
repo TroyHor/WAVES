@@ -13,6 +13,7 @@ extends Control
 ##   --selftest  runs tests/ui_smoke.gd through the real input path and quits
 
 const FX_SHADER := preload("res://src/ui/crt/screen_fx.gdshader")
+const DESK_SHADER := preload("res://src/ui/crt/bench_background.gdshader")
 const MenuScreen := preload("res://src/ui/menu_screen.gd")
 const CombatScreen := preload("res://src/ui/combat/combat_screen.gd")
 const RunMapScreen := preload("res://src/ui/run_map_screen.gd")
@@ -25,6 +26,9 @@ var run: RunState
 var tutorial_enabled := true
 
 var _viewport: SubViewport
+## The lab bench every screen sits on (drawn once, behind all screens).
+var _desk: ColorRect
+var _desk_mat: ShaderMaterial
 var _display: TextureRect
 var _crt_material: ShaderMaterial
 var _crt_enabled := true
@@ -47,6 +51,12 @@ func _ready() -> void:
 	_viewport.handle_input_locally = true
 	_viewport.disable_3d = true
 	add_child(_viewport)
+	_desk = ColorRect.new()
+	_desk_mat = ShaderMaterial.new()
+	_desk_mat.shader = DESK_SHADER
+	_desk.material = _desk_mat
+	_desk.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_viewport.add_child(_desk)
 
 	_crt_material = ShaderMaterial.new()
 	_crt_material.shader = FX_SHADER
@@ -171,6 +181,8 @@ func _set_screen(screen: Control) -> void:
 
 func _on_resized() -> void:
 	_viewport.size = Vector2i(size)
+	_desk.size = size
+	_desk_mat.set_shader_parameter("size_px", size)
 	_crt_material.set_shader_parameter("source_size", size)
 
 

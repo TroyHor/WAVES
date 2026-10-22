@@ -40,7 +40,6 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	var font := get_theme_default_font()
-	draw_rect(Rect2(Vector2.ZERO, size), Assets.color("background"))
 	var title := "信号链"
 	var title_col := Assets.color("text")
 	if run.is_won():

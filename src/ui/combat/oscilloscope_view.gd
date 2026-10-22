@@ -119,26 +119,8 @@ func _draw() -> void:
 		draw_circle(led + Vector2(-1.5, -1.5), 1.5, Color(1, 1, 1, 0.8))
 
 
-## Cream moulded plastic: rounded shell with a soft top-to-bottom shade, a
-## light upper lip and a darker lower edge. Deliberately plain.
 func _draw_case(r: Rect2) -> void:
-	var shell := StyleBoxFlat.new()
-	shell.bg_color = Assets.color("case")
-	shell.set_corner_radius_all(16)
-	shell.border_color = Assets.color("case_edge")
-	shell.set_border_width_all(2)
-	shell.shadow_color = Color(0, 0, 0, 0.45)
-	shell.shadow_size = 10
-	shell.shadow_offset = Vector2(0, 5)
-	draw_style_box(shell, r)
-	# Soft shading toward the bottom of the shell.
-	var shade := StyleBoxFlat.new()
-	shade.bg_color = Color(Assets.color("case_dark"), 0.55)
-	shade.set_corner_radius_all(16)
-	shade.corner_radius_top_left = 0
-	shade.corner_radius_top_right = 0
-	draw_style_box(shade, Rect2(r.position.x + 2, r.get_center().y, r.size.x - 4, r.size.y * 0.5 - 2))
-	draw_line(Vector2(r.position.x + 16, r.position.y + 3), Vector2(r.end.x - 16, r.position.y + 3), Color(1, 1, 1, 0.55), 2.0)
+	InstrumentStyle.draw_case(self, r)
 
 
 ## Dark recessed surround for the tube (no screws, kept simple).

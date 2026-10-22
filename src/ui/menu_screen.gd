@@ -63,8 +63,6 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var font := get_theme_default_font()
 	var cx := size.x * 0.5
-	# Background drawn here (not a ColorRect child) so it stays behind the title.
-	draw_rect(Rect2(Vector2.ZERO, size), Assets.color("background"))
 	draw_string(font, Vector2(0, 220), "W A V E S", HORIZONTAL_ALIGNMENT_CENTER, size.x, Assets.fs(120), Assets.color("text"))
 	# Two interfering traces under the title.
 	var pts_a := PackedVector2Array()

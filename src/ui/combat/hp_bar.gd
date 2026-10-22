@@ -6,6 +6,8 @@ var value := 0
 var max_value := 1
 var preview_loss := 0
 var color := Color.WHITE
+## Text colour (defaults to `color`); dark print when drawn on a cream case.
+var text_color := Color(0, 0, 0, 0)
 var label := "HP"
 var font_size := 26
 
@@ -25,7 +27,9 @@ func set_values(p_value: int, p_max: int, p_loss: int) -> void:
 func _draw() -> void:
 	var fsz := Assets.fs(font_size)
 	var font := get_theme_default_font()
-	var bar := Rect2(0, fsz + 6, size.x, size.y - fsz - 6)
+	# Bar height is capped so tall readouts keep room for the loss line below.
+	var bar_h := minf(size.y - fsz - 6, maxf(14.0, fsz * 0.55))
+	var bar := Rect2(0, fsz + 6, size.x, bar_h)
 	draw_rect(bar, Assets.color("screen"))
 	var w := bar.size.x * value / max_value
 	draw_rect(Rect2(bar.position, Vector2(w, bar.size.y)), Color(color, 0.85))
@@ -39,9 +43,15 @@ func _draw() -> void:
 		draw_line(Vector2(x, bar.position.y), Vector2(x, bar.end.y), Assets.color("background"), 2.0)
 	draw_rect(bar, Assets.color("panel_border"), false, 2.0)
 	# Big current value, small max; previewed loss blinks on the right.
+	var tc := color if text_color.a == 0.0 else text_color
 	var big := str(value)
-	draw_string(font, Vector2(0, fsz), big, HORIZONTAL_ALIGNMENT_LEFT, -1, fsz, color)
+	draw_string(font, Vector2(0, fsz), big, HORIZONTAL_ALIGNMENT_LEFT, -1, fsz, tc)
 	var bw := font.get_string_size(big, HORIZONTAL_ALIGNMENT_LEFT, -1, fsz).x
-	draw_string(font, Vector2(bw + 4, fsz), "/%d" % max_value, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fsz * 0.6), Color(color, 0.7))
+	draw_string(font, Vector2(bw + 4, fsz), "/%d" % max_value, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fsz * 0.6), Color(tc, 0.7))
 	if preview_loss > 0:
-		draw_string(font, Vector2(0, fsz), "-%d" % preview_loss, HORIZONTAL_ALIGNMENT_RIGHT, size.x, int(fsz * 0.85), Assets.color("damage_to_player"))
+		var loss_fs := int(fsz * 0.7)
+		if size.y >= bar.end.y + loss_fs + 6:
+			# Room below the bar: put the previewed loss there (no overlap).
+			draw_string(font, Vector2(0, bar.end.y + loss_fs + 4), "预计 -%d" % preview_loss, HORIZONTAL_ALIGNMENT_RIGHT, size.x, loss_fs, Assets.color("damage_to_player"))
+		else:
+			draw_string(font, Vector2(0, fsz), "-%d" % preview_loss, HORIZONTAL_ALIGNMENT_RIGHT, size.x, int(fsz * 0.85), Assets.color("damage_to_player"))
