@@ -11,5 +11,7 @@
 ## 进行中
 
 ## 待办
+- [请求] ui → narrative：引导便签贴在仪器旁，右侧便签区只有约 190px 宽（每行 7–8 个字）、桌沿便签区最多 3 行（每行约 20 字）。请把 `data/tutorial/hints.json` 每条文案压到 **≤ 45 字、最好一句话**；超长的现在会缩到最小字号并变成很长的竖条（最明显：`intro_collision`、`enc_twins`、`feat_overflow`、`enc_tide`）。不需要再写"按钮/知道了"之类字样（便签上是勾选框）。完成标准：所有条目 ≤ 45 字，`--freshprogress` 截图便签不超过 8 行。
 
 ## 已完成
+- ui：P4 引导提示改为值班日志便签（HintSlip / DeskNote、蜡笔箭头、勾选框），见 art_direction §5、§11。

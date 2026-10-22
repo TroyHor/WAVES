@@ -52,7 +52,29 @@ func run(app: Node) -> int:
 	_check(enemy.hp == expected_hp, "enemy HP matches the preview (%d == %d)" % [enemy.hp, expected_hp])
 	_check(combat.player_hp == expected_player, "player HP matches the preview")
 
-	# 4. Run flow: run map -> first fight (HP carried) -> back to map after a win.
+	# 4. Tutorial: the first hint is a duty-log slip; ticking its box (a real
+	# click through the CRT remap) marks it seen and takes it down.
+	var saved_progress: Progress = app.progress
+	app.progress = Progress.new()  # unsaved
+	app.tutorial_enabled = true
+	app.start_run(1)  # the opening hints belong to a run's first fight
+	app.start_run_fight()
+	await _app.get_tree().create_timer(1.0).timeout
+	var hs: Control = app.current_screen()
+	var slip: HintSlip = hs._hint
+	_check(slip != null and slip.note.tick_box, "first hint shown as a slip with a tick box")
+	if slip != null:
+		var box: Rect2 = slip.note.tick_rect()
+		_mouse_button(slip.note.get_global_transform() * box.get_center(), true)
+		await _frames(1)
+		_mouse_button(slip.note.get_global_transform() * box.get_center(), false)
+		await _app.get_tree().create_timer(0.6).timeout
+		_check(app.progress.seen_hints.has("intro_enemy"), "ticking the slip marks the hint seen")
+		_check(hs._hint != slip, "ticked slip taken down")
+	app.tutorial_enabled = false
+	app.progress = saved_progress
+
+	# 5. Run flow: run map -> first fight (HP carried) -> back to map after a win.
 	app.start_run(3)
 	await _frames(3)
 	_check(app.current_screen().get("run") != null, "run map shown")
