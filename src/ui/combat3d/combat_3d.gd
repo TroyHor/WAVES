@@ -9,7 +9,10 @@ extends Control
 ## bulbs, on a wooden desk under a warm lamp. Their warped 2D versions are
 ## hidden; the hand, piles and slotted cards stay 2D and are drawn on top
 ## (slot positions are projected from the 3D foot).
-## Prototype only: no 3D input picking. --camyaw=DEG orbits the camera.
+## Input: every frame the hidden 2D devices get the projected quads of their
+## 3D faces, so the 2D screen's own hit tests (slots, screens, fire key) and
+## effect positions line up with the 3D instruments; input is forwarded to it.
+## --camyaw=DEG orbits the camera.
 
 const CombatScreen := preload("res://src/ui/combat/combat_screen.gd")
 const FACE_SHADER := preload("res://src/ui/combat3d/face.gdshader")
@@ -24,6 +27,7 @@ const FOOT_D := 0.34
 const FOOT_T := 0.022
 const GAP := 0.18
 const BEVEL := 0.012
+const GAUGE_W := 0.27
 const CAM_POS := Vector3(0.0, 1.85, 4.6)
 const CAM_TARGET := Vector3(0.0, 0.42, -0.3)
 const CAM_FOV := 16.5
@@ -51,6 +55,11 @@ var _foot_sy := 0.001
 var _bulbs: Array[MeshInstance3D] = []
 var _bulb_lights: Array[OmniLight3D] = []
 var _built := false
+## Fire key cap (sinks with FireKey.press_amount) and rest positions of the
+## transmitter parts (they tremble with the 2D device).
+var _key_cap: Node3D
+var _tx_rest := Vector3.ZERO
+var _foot_rest := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -97,6 +106,22 @@ func _fill(tr: TextureRect) -> void:
 	tr.stretch_mode = TextureRect.STRETCH_SCALE
 	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+## Dev flags (--autoresolve, --openhand) reach the 2D screen through these.
+func demo_resolve() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_screen.demo_resolve()
+
+
+func _set_hand_open(open: bool) -> void:
+	_screen._set_hand_open(open)
+
+
+func _input(event: InputEvent) -> void:
+	_src_vp.push_input(event)
+	get_viewport().set_input_as_handled()
 
 
 func _fit() -> void:
@@ -182,11 +207,13 @@ func _build() -> void:
 	_bezel(_scope, Rect2(m.position + mt.position, mt.size), Vector2(SCOPE_S, SCOPE_S), m.scope._vp, Color(0.01, 0.04, 0.02))
 
 	# Line-integrity meter: small upright box in front-left, turned a little.
-	var gs := 0.27 / CombatScreen.GAUGE_FLAT.x
+	var gs := GAUGE_W / CombatScreen.GAUGE_FLAT.x
 	_gauge = _device(s._gauge_dev, CombatScreen.GAUGE_FLAT, Vector2(gs, gs), Vector4(r, r, r, r), 0.12)
 	_gauge.basis = Basis(Vector3.UP, 0.22) * Basis(Vector3.BACK, 0.05)
 	_gauge.position = Vector3(tx_x0 - 0.36, CombatScreen.GAUGE_FLAT.y * gs, z_tx + 0.12)
 
+	_tx_rest = _tx.position
+	_foot_rest = _foot.position
 	_built = true
 	_sync_2d()
 
@@ -283,6 +310,7 @@ func _fire_key(rect: Rect2) -> void:
 	var root := Node3D.new()
 	root.position = Vector3(c.x * s, -c.y * s, 0.0)
 	_tx.add_child(root)
+	_key_cap = Node3D.new()
 	var side := minf(rect.size.x, rect.size.y) * s
 	var metal := StandardMaterial3D.new()
 	metal.albedo_color = Color("b9b8b2")
@@ -334,7 +362,7 @@ func _fire_key(rect: Rect2) -> void:
 	stem.material_override = red
 	stem.basis = Basis(Vector3.RIGHT, PI * 0.5)
 	stem.position.z = 0.032
-	root.add_child(stem)
+	_key_cap.add_child(stem)
 	var cap := MeshInstance3D.new()
 	var sp := SphereMesh.new()
 	sp.radius = side * 0.3
@@ -344,7 +372,8 @@ func _fire_key(rect: Rect2) -> void:
 	cap.material_override = red
 	cap.basis = Basis(Vector3.RIGHT, PI * 0.5) * Basis.from_scale(Vector3(1, 0.55, 1))
 	cap.position.z = 0.042
-	root.add_child(cap)
+	_key_cap.add_child(cap)
+	root.add_child(_key_cap)
 
 
 ## Glass power bulbs in their sockets (lit by EnergyView's state each frame).
@@ -401,11 +430,35 @@ func _world_of(node: Node3D, p: Vector2, sc: Vector2, z := 0.0) -> Vector3:
 	return node.global_transform * Vector3(p.x * sc.x, -p.y * sc.y, z)
 
 
+## Gives a hidden 2D device the on-screen quad of its 3D face (rest pose), so
+## its homography equals the camera's projection of that face plane.
+func _map_device(dev: DeskDevice, node: Node3D, sc: Vector2) -> void:
+	var f := dev.flat_size
+	var pts := PackedVector2Array()
+	for p in [Vector2.ZERO, Vector2(f.x, 0), f, Vector2(0, f.y)]:
+		pts.append(_cam.unproject_position(_world_of(node, p, sc)))
+	# Re-apply only on change (the 2D layout may reset it on resize), so the
+	# device's own shake / tremble offset survives.
+	var lo := pts[0]
+	for p in pts:
+		lo = lo.min(p)
+	var rel := PackedVector2Array()
+	for p in pts:
+		rel.append(p - lo)
+	if dev._base_pos != lo or dev.quad != rel:
+		dev.set_quad(pts)
+
+
 # --- Per frame ---------------------------------------------------------------
 
 func _process(_delta: float) -> void:
 	if not _built:
 		return
+	var s = _screen
+	var j: Vector2 = s._tx_dev.jitter() * 0.0006
+	_tx.position = _tx_rest + Vector3(j.x, -j.y, 0.0)
+	_foot.position = _foot_rest + Vector3(j.x, 0.0, j.y)
+	_key_cap.position.z = -0.014 * s._fire_art.press_amount
 	_sync_2d()
 	var ev: EnergyView = _screen._energy
 	var used := clampi(ev.max_energy - ev.energy, 0, _bulbs.size())
@@ -426,6 +479,14 @@ func _process(_delta: float) -> void:
 ## on the foot's slits; the duty note hangs over the scope's knob strip.
 func _sync_2d() -> void:
 	var s = _screen
+	_map_device(s._scope_dev, _scope, Vector2(SCOPE_S, SCOPE_S))
+	_map_device(s._tx_dev, _tx, Vector2(_s_tx, _s_tx))
+	_map_device(s._foot_dev, _foot, Vector2(_s_tx, _foot_sy))
+	var gs := GAUGE_W / CombatScreen.GAUGE_FLAT.x
+	_map_device(s._gauge_dev, _gauge, Vector2(gs, gs))
+	var key: Rect2 = s._tx_dev.flat_rect_to_screen(s._fire_art.get_rect())
+	s._resolve_btn.position = key.position
+	s._resolve_btn.size = key.size
 	var bases := PackedVector2Array()
 	for t in combat.rules.track_length:
 		bases.append(_cam.unproject_position(_world_of(_foot, s._slot.slit_point(t), Vector2(_s_tx, _foot_sy))))
