@@ -26,4 +26,4 @@
 
 ## 已完成
 
-- gameplay：一局节点框架 + 奖励框架 + 遗物钩子骨架（分支 `claude/gameplay-run-framework-428e0c`）。
+- gameplay：一局节点框架 + 奖励框架 + 遗物钩子骨架（分支 `claude/gameplay-run-framework-428e0c`，提交 37652ac）。
