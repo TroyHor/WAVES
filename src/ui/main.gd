@@ -152,13 +152,14 @@ func _show_combat(combat: Combat, encounter_id: String, seed_value: int) -> void
 	_set_screen(screen)
 
 
-## Impact feedback at a game-space position: a smooth shockwave ripple plus a
-## short damped shake (strength 0..1).
-func impact(game_pos: Vector2, strength: float) -> void:
+## Impact feedback at a game-space position: a short damped shake (strength
+## 0..1), plus a smooth shockwave ripple unless `ripple` is false.
+func impact(game_pos: Vector2, strength: float, ripple := true) -> void:
 	strength = clampf(strength, 0.0, 1.0)
-	_ripple_t = 0.0
-	_crt_material.set_shader_parameter("ripple_center", game_pos / size)
-	_crt_material.set_shader_parameter("ripple_strength", strength)
+	if ripple:
+		_ripple_t = 0.0
+		_crt_material.set_shader_parameter("ripple_center", game_pos / size)
+		_crt_material.set_shader_parameter("ripple_strength", strength)
 	_shake = maxf(_shake, strength)
 	_shake_t = 0.0
 

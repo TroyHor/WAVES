@@ -1084,7 +1084,7 @@ func _resolve() -> void:
 	#    transmitter kicks back and its wave streaks up into the main scope.
 	_charge = 0.0
 	_tx_dev.shake(0.6 + power)
-	app.impact(_tx_dev.get_global_rect().get_center(), 0.15 + 0.25 * power)
+	app.impact(_tx_dev.get_global_rect().get_center(), 0.1 + 0.15 * power, false)
 	_merged.result = r
 	_merged.arrive = 0.0
 	_merged.reveal = 0.0
@@ -1096,15 +1096,13 @@ func _resolve() -> void:
 	tw.tween_property(_merged, "arrive", 1.0, LAUNCH_SECONDS + 0.1).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT).set_delay(0.1)
 	await tw.finished
 
-	# 2. Impact: soft rings where waves cancel, a smooth screen ripple, and
-	#    the result bars / numbers pop in left to right.
-	_merged.impact = 1.0
+	# 2. Impact: screen shake and collision particles (no ripple), and the
+	#    result bars / numbers pop in left to right.
 	app.impact(_scope_dev.flat_to_screen(_merged.position + _merged.size * 0.5),
-		0.4 + 0.5 * power + 0.04 * r.perfect_cancels)
-	_scope_dev.shake(0.5 + 1.2 * power)
+		0.25 + 0.3 * power + 0.03 * r.perfect_cancels, false)
+	_scope_dev.shake(0.3 + 0.7 * power)
 	_collision_bursts(r, power)
 	var tw2 := create_tween().set_parallel(true)
-	tw2.tween_property(_merged, "impact", 0.0, IMPACT_SECONDS)
 	tw2.tween_property(_merged, "reveal", 1.0, IMPACT_SECONDS)
 	tw2.tween_property(_merged, "merge", 1.0, 0.4)
 	await tw2.finished

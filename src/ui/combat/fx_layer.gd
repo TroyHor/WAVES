@@ -37,7 +37,7 @@ func spark(pos: Vector2, color: Color) -> void:
 
 
 ## Collision burst: `count` sparks flung out in all directions (slowed by
-## drag, light gravity) and a bright flash ring. `power` scales speed and size.
+## drag, light gravity) and a short bright flash (no ring). `power` scales speed and size.
 func burst(pos: Vector2, color: Color, count: int, power := 1.0) -> void:
 	var p := pos - global_position
 	for i in count:
@@ -94,7 +94,7 @@ func _draw() -> void:
 		var col: Color = f["color"]
 		var rad: float = f["radius"] * (0.4 + k * 1.2)
 		draw_circle(f["pos"], rad * 0.6, Color(col.lerp(Color.WHITE, 0.6), (1.0 - k) * 0.35))
-		draw_arc(f["pos"], rad, 0.0, TAU, 40, Color(col.lerp(Color.WHITE, 0.4), (1.0 - k) * 0.8), 4.0 * (1.0 - k) + 1.0, true)
+		draw_circle(f["pos"], rad * 0.25, Color(col.lerp(Color.WHITE, 0.85), (1.0 - k) * 0.7))
 	for f in _floaters:
 		var k: float = (now - f["start"]) / f["dur"]
 		var pos: Vector2 = f["pos"] + Vector2(0, -60.0 * k)
