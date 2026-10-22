@@ -53,8 +53,10 @@ func _draw() -> void:
 	face.bg_color = Color("ece5d2")
 	face.set_corner_radius_all(InstrumentStyle.WINDOW_RADIUS)
 	draw_style_box(face, dial)
-	var pivot := Vector2(dial.get_center().x, dial.end.y - 14)
-	var rad := minf(dial.size.x * 0.47, dial.size.y - 30)
+	# Scale arc + pivot centred in the dial face (the needle reaches 0.92 rad
+	# above the pivot; the pivot cap 7 px below it).
+	var rad := minf(dial.size.x * 0.47, (dial.size.y - 24.0) / 0.95)
+	var pivot := Vector2(dial.get_center().x, dial.get_center().y + (rad * 0.92 - 7.0) * 0.5)
 	var ink := Color("2b2620")
 	# Red zone for the lowest fifth of the scale.
 	draw_arc(pivot, rad * 0.86, A0, lerpf(A0, A1, 0.2), 24, Color("c8352b"), 6.0, true)

@@ -23,10 +23,10 @@ const SHOT_SECONDS := 0.5
 const SCOPE_FLAT := Vector2(2000, 900)
 ## Transmitter (L-shaped, side view): the upright face, and the horizontal
 ## foot with the card slots lying on the desk in front of it.
-const TX_FLAT := Vector2(1500, 250)
+const TX_FLAT := Vector2(1500, 205)
 const FOOT_FLAT := Vector2(1500, 300)
 ## Share of the transmitter's on-screen height taken by the upright face.
-const TX_FACE_SHARE := 0.68
+const TX_FACE_SHARE := 0.6
 ## Front lip thickness of the foot (pixels).
 const FOOT_LIP := 14.0
 const GAUGE_FLAT := Vector2(380, 360)
@@ -58,7 +58,7 @@ var _transmitter: InstrumentCase
 var _integrity: InstrumentCase
 ## Fire key artwork on the transmitter face (the clickable area is
 ## _resolve_btn, an invisible button over its on-screen footprint).
-var _fire_art: Button
+var _fire_art: FireKey
 var _note: DeskNote
 var _slot: SlotBar
 var _slot_cards: SlotCards
@@ -170,9 +170,7 @@ func _ready() -> void:
 	_player_tube = _make_tube(_player_screen, Color(0.01, 0.04, 0.05), _tx_dev.content)
 	_energy = EnergyView.new()
 	_tx_dev.content.add_child(_energy)
-	_fire_art = Button.new()
-	_fire_art.text = "发射"
-	_fire_art.add_theme_font_size_override("font_size", Assets.fs(34))
+	_fire_art = FireKey.new()
 	_tx_dev.content.add_child(_fire_art)
 	_foot_dev = _make_device(FOOT_FLAT)
 	_foot_dev.depth = 0.0
@@ -213,6 +211,8 @@ func _ready() -> void:
 	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
 		_resolve_btn.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 	_resolve_btn.pressed.connect(_resolve)
+	_resolve_btn.mouse_entered.connect(func() -> void: _fire_art.hovered = true)
+	_resolve_btn.mouse_exited.connect(func() -> void: _fire_art.hovered = false)
 	add_child(_resolve_btn)
 
 
@@ -322,7 +322,7 @@ func _layout() -> void:
 	var t0 := y1 + 22.0
 	var t1 := _edge_y - 8.0
 	var tm := t0 + (t1 - t0) * TX_FACE_SHARE
-	var nb := minf(w * 0.62, (tm - t0) * TX_FLAT.x / TX_FLAT.y)
+	var nb := minf(w * 0.66, (tm - t0) * TX_FLAT.x / TX_FLAT.y)
 	_tx_dev.set_quad(PackedVector2Array([Vector2(cx - nb * 0.5, t0), Vector2(cx + nb * 0.5, t0),
 		Vector2(cx + nb * 0.5, tm), Vector2(cx - nb * 0.5, tm)]))
 	var fb := nb * 1.05
@@ -412,10 +412,10 @@ func _layout_faces() -> void:
 
 	# --- Transmitter face: bulbs | screen | fire key (the foot is _slot).
 	var face_h := TX_FLAT.y
-	var bulbs := Rect2(IN, IN, 110, face_h - IN * 2)
-	# Round fire key filling the face's height, its ready lamp at the top right.
-	var key_d := face_h - IN * 2 - 6.0
-	var key_w := key_d + 40.0
+	var bulbs := Rect2(IN, IN, 124, face_h - IN * 2)
+	# Fire key on its metal plate, its ready lamp at the top right.
+	var key_d := (face_h - IN * 2) * 0.6
+	var key_w := key_d + 36.0
 	var twin := Rect2(bulbs.end.x + IN, IN, TX_FLAT.x - bulbs.end.x - IN * 3 - key_w, face_h - IN * 2)
 	_transmitter.windows = [twin]
 	_transmitter.labels = []
@@ -425,10 +425,9 @@ func _layout_faces() -> void:
 	_player_tube.size = twin.size
 	_player_screen.grid_x0 = 28.0
 	_player_screen.grid_w = twin.size.x - 56.0
-	var key := Rect2(twin.end.x + IN + (key_w - key_d) * 0.5 - 8.0, (face_h - key_d) * 0.5, key_d, key_d)
+	var key := Rect2(twin.end.x + IN + (key_w - key_d) * 0.5 - 6.0, (face_h - key_d) * 0.5 + 8.0, key_d, key_d)
 	_fire_art.position = key.position
 	_fire_art.size = key.size
-	ThemeFactory.style_fire_key(_fire_art, int(key_d * 0.5))
 	_transmitter.lamps = [{"center": Vector2(TX_FLAT.x - IN - 4.0, IN + 6.0), "on": false, "color": Color("ff4d3a")}]
 	_slot.grid_x0 = twin.position.x + _player_screen.grid_x0
 	_slot.grid_w = _player_screen.grid_w
@@ -1003,6 +1002,7 @@ func _resolve() -> void:
 	_complete_hint("resolve")
 	if _hint != null:
 		return  # an unanswered hint must be dismissed first
+	_fire_art.press()
 	var shown_player_hp := combat.player_hp
 	var played_before: Array[PlayedCard] = combat.played.duplicate()
 	var report := combat.resolve_turn()

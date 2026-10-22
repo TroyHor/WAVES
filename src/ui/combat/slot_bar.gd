@@ -12,7 +12,7 @@ var track_length := 16
 var grid_x0 := 0.0
 var grid_w := 100.0
 ## Depth of the slit row on the foot (0 = far edge, 1 = near edge).
-var slit_depth := 0.74
+var slit_depth := 0.8
 ## Corner radii (TL, TR, BR, BL), matching the foot's DeskDevice.
 var radii := Vector4(0, 0, InstrumentStyle.CASE_RADIUS, InstrumentStyle.CASE_RADIUS)
 ## Cells whose slits glow (the span of the hovered / dragged wave), [from, to).
