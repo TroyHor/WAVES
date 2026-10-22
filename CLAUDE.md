@@ -81,7 +81,11 @@ builds/                  导出产物（git 忽略）
   - 尚未迁移：引导框（P4）、系统字体（P5）。
 
 ## 多 agent 协作
-- 三个角色定义在 `.claude/agents/`：**narrative**（剧情与进度：`docs/story.md`、design.md 第 0 节与一局结构、数据里的名称/文案/引导文本、run.json）、**gameplay**（功能实现：`src/core`、`src/data`、`src/platform`、单元测试、rules.json 与卡牌/敌人数值）、**ui**（界面与表现：`src/ui`、`assets.gd`、着色器、`ui_smoke.gd`、art_direction.md）。
+- 四个角色定义在 `.claude/agents/`：
+  - **narrative**（剧情与进度）：`docs/story.md`、design.md 第 0 节与一局结构、数据里的名称/文案/引导文本、run.json。
+  - **designer**（机制设计协助）：`docs/mechanics.md`、design.md 第 3、4、7 节、卡牌/初始牌组/敌人 HP 与招式波形/rules.json 的**数值**；提案先进看板"待用户决定"，确认后才落地；不写代码。
+  - **gameplay**（功能实现）：`src/core`、`src/data`、`src/platform`、单元测试、平衡机器人；按 designer 的规格与 narrative 的数据格式实现。
+  - **ui**（界面与表现）：`src/ui`、`assets.gd`、着色器、`ui_smoke.gd`、art_direction.md。
 - 每个角色只改自己负责的文件；跨角色需求、进度与"待用户决定"写在 `docs/board.md`。
 - 并行工作时每个角色在独立 worktree 分支上，合并进 main 由用户或主会话决定。
 
