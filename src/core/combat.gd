@@ -18,6 +18,8 @@ var turn := 0
 var swap_interval := 0
 var swap_countdown := 0
 var outcome := Outcome.ONGOING
+## Active relics (see Relic for the hook order). Set before start().
+var relics: Array[Relic] = []
 
 
 func _init(p_rules: RulesConfig, cards: Array[CardData], enemy_defs: Array[EnemyData], seed_value: int, p_swap_interval := 0, starting_hp := -1) -> void:
@@ -41,6 +43,8 @@ static func from_encounter(db: GameDatabase, encounter_id: String, seed_value: i
 
 
 func start() -> void:
+	for r in relics:
+		r.on_combat_start(self)
 	_begin_turn()
 
 
@@ -103,7 +107,10 @@ func placements(extra: PlayedCard = null) -> Array[WavePlacement]:
 
 
 func preview(extra: PlayedCard = null) -> TrackResult:
-	return Resolver.resolve(enemy_track(), placements(extra), rules)
+	var result := Resolver.resolve(enemy_track(), placements(extra), rules)
+	for r in relics:
+		r.modify_result(self, result)
+	return result
 
 
 ## Turns until the twins swap (0 when no swapping applies).
@@ -164,6 +171,8 @@ func resolve_turn() -> TurnReport:
 	player_hp = maxi(0, player_hp - report.result.to_player)
 	# Overkill is wasted: it never carries over to the enemy behind.
 	report.target.hp = maxi(0, report.target.hp - report.result.to_enemy)
+	for r in relics:
+		r.after_resolve(self, report)
 	report.killed = not report.target.is_alive()
 
 	var player_dead := player_hp <= 0
@@ -188,6 +197,8 @@ func _begin_turn() -> void:
 	deck.draw(rules.hand_size, rules.max_hand_size)
 	for e in alive_enemies():
 		e.roll_intent(rng, rules.track_length)
+	for r in relics:
+		r.on_turn_start(self)
 
 
 ## Returns true if the enemies swapped front/back.

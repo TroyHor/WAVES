@@ -25,3 +25,25 @@ var to_enemy := 0
 var overflow_damage := 0
 var perfect_cancels := 0
 var blocked_total := 0
+
+
+## Recomputes the totals from `outcome` / `damage` / `blocked` (for relics that
+## change per-cell results in Relic.modify_result).
+func recount() -> void:
+	to_player = 0
+	to_enemy = 0
+	overflow_damage = 0
+	perfect_cancels = 0
+	blocked_total = 0
+	for t in outcome.size():
+		match outcome[t]:
+			Outcome.PLAYER_HIT:
+				to_player += damage[t]
+			Outcome.OVERFLOW:
+				to_enemy += damage[t]
+				overflow_damage += damage[t]
+			Outcome.ENEMY_HIT:
+				to_enemy += damage[t]
+			Outcome.CANCELLED:
+				perfect_cancels += 1
+		blocked_total += blocked[t]

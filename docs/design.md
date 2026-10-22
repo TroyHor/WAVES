@@ -82,6 +82,23 @@ N : 0  0  1 -1  1  2  4  2
 ### 2.6 牌堆
 标准构筑结构：抽牌堆、手牌、弃牌堆、消耗堆。抽牌堆空时把弃牌堆洗回。初始牌组约 10 张。
 
+### 2.7 一局的结构（实现说明：节点框架）
+一局 = `data/config/run.json` 里按顺序排列的**节点**（`RunState`，`src/core/run_state.gd`）。HP、牌组（`deck_ids`）、遗物（`relic_ids`）在节点之间延续，HP 不自动回满。目前框架只决定"怎么运作"，各节点放什么、放几个由 narrative / designer 决定。
+
+| 节点 `type` | 字段 | 行为 |
+|---|---|---|
+| `fight` | `encounter` | 用当前牌组 + 遗物开战；胜利进入下一节点，失败本局结束。 |
+| `reward` | 可选 `size`、`pool`（卡牌 id 列表） | 生成卡牌奖励：从卡池按 `reward_weight` 加权、不放回抽 `size`（缺省 `rules.reward_offer_size`）张；选一张加入牌组，或跳过（`rules.reward_allow_skip`）。 |
+| `rest` | 可选 `effects` | 应用效果后继续；没有 `effects` 就什么也不做（占位）。 |
+| `event` | `event`（事件 id） | 占位：事件引擎完成前，UI 以选中的效果列表调用 `complete_event`。 |
+
+- **旧格式兼容**：`{"encounters": [...]}` 仍可读取，等同于只有 fight 节点。仓库里的 run.json 已迁移为 `nodes` 格式（内容不变：仍是 4 场战斗）。
+- **局内效果**（`RunEffects`）：`hp`（± 回血/扣血，降到 0 本局失败）、`max_hp`、`add_card`、`remove_card`、`add_relic`。休息与事件共用；新增类型需改代码 + 测试。
+- **卡池**：卡牌 JSON 可选字段 `reward_weight`（缺省 1；0 = 不进默认卡池）。节点 `pool` 显式指定时只从中抽。
+- **可复现**：战斗种子仍为 `局种子 + 已胜场数 × 7919`（与之前一致）；其他节点的随机数由局种子与节点序号派生。奖励是纯函数，同一节点重复生成结果相同，所以无需存档。
+- **数值缺省**（暂定，由 designer 调）：`reward_offer_size` = 3，`reward_allow_skip` = true。
+- **遗物钩子**（`Relic` 基类 + `RelicRegistry`，暂无正式遗物）：`on_combat_start` → 每回合 `on_turn_start`（抽牌、敌人出招之后）→ `modify_result`（在 `Combat.preview()` 内调用，预览与结算永远一致；改完逐格伤害调 `result.recount()`）→ `after_resolve`（本回合伤害生效后、判定胜负前）。
+
 ## 3. 原型内容（第一里程碑）
 
 ### 3.1 卡牌（约 10 张）
