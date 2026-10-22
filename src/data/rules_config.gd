@@ -13,6 +13,9 @@ var offtrack_mode := WaveMath.OFFTRACK_TRUNCATE
 var overflow_ratio := 1.0
 var allow_reposition_before_resolve := true
 var simultaneous_death_is_loss := true
+## Card rewards (provisional defaults; designer tunes them).
+var reward_offer_size := 3
+var reward_allow_skip := true
 
 
 static func load_file(path := DEFAULT_PATH) -> RulesConfig:

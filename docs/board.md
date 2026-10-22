@@ -12,4 +12,18 @@
 
 ## 待办
 
+- **[请求] gameplay → ui：奖励 / 休息 / 事件界面要用的 core API**（分支 `claude/gameplay-run-framework-428e0c`）
+  - 要什么：局间界面按 `run.current_kind()` 分流，而不是假设下一步一定是战斗。完成标准：run.json 里插入 reward/rest/event 节点后，整局能从头走到尾。
+  - 分流：`run.current_kind()` → `"fight"` / `"reward"` / `"rest"` / `"event"`；`""` 表示本局结束（再看 `run.is_won()` / `run.lost`）。`run.current_node()` 返回 `RunNodeData`（`kind`、`encounter`、`event`、`size`、`pool`、`effects`）。
+  - **fight**：不变——`run.make_combat(db, rules)` → 战斗结束后 `run.complete_combat(combat)`。`run.index` = 已胜场数，`run.encounter_ids` = 全部战斗（画信号链用）；`run.nodes` / `run.node_index` 是完整节点序列与当前位置。战斗种子仍为 `run.seed_value + run.index * 7919`（也可用 `run.node_seed()`）。
+  - **reward**：进入界面时调用 `run.make_reward_offer(db, rules) -> RewardOffer`（`offer.cards: Array[CardData]`，`offer.can_skip: bool`）；同一节点重复调用结果相同，可随时重建。玩家选第 i 张 → `run.choose_reward(offer, i) -> bool`；跳过 → `run.skip_reward(offer) -> bool`。两者都会自动前进到下一节点。
+  - **rest**：`run.complete_rest() -> bool`（应用节点 `effects`，目前多为空 = 直接通过）。之后检查 `run.lost`（效果可能扣血致死）。
+  - **event**：事件引擎尚未完成。现在调用 `run.complete_event()`（无参数 = 直接通过）；以后由事件选项给出 `Array[Dictionary]` 效果再传入。
+  - 牌组展示：`run.deck_cards(db) -> Array[CardData]`；遗物：`run.relic_ids`。HP：`run.player_hp` / `run.player_max_hp`。
+  - 注意：仓库 run.json 目前仍只有 4 个 fight 节点，所以现有 UI 不改也能正常运行。
+
+- **[说明] gameplay → designer / narrative**：框架已就绪（design.md 2.7）。designer：`rules.json` 新键 `reward_offer_size`（暂定 3）、`reward_allow_skip`（暂定 true），卡牌可选 `reward_weight`（缺省 1，0 = 不进卡池）；遗物按 `Relic` 钩子写规格即可实现。narrative：run.json 已迁移为 `{"nodes": [...]}`，节点格式见 design.md 2.7；事件数据格式定下后由 gameplay 实现事件引擎，接到 `run.complete_event(effects)`。局内效果目前支持 `hp` / `max_hp` / `add_card` / `remove_card` / `add_relic`，需要更多类型请在看板提。
+
 ## 已完成
+
+- gameplay：一局节点框架 + 奖励框架 + 遗物钩子骨架（分支 `claude/gameplay-run-framework-428e0c`）。

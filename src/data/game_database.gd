@@ -14,7 +14,9 @@ var cards := {}       ## id -> CardData
 var enemies := {}     ## id -> EnemyData
 var encounters := {}  ## id -> EncounterData
 var starter_deck := PackedStringArray()
-## Encounter ids of the linear run, in order.
+## The run as a sequence of nodes (fight / reward / rest / event).
+var run_nodes: Array[RunNodeData] = []
+## Encounter ids of the run's fight nodes, in order.
 var run_order := PackedStringArray()
 ## Tutorial hint definitions (see TutorialRules).
 var hints: Array[Dictionary] = []
@@ -38,8 +40,10 @@ static func load_default() -> GameDatabase:
 			db.starter_deck.append(str(id))
 	var run = _read_json(RUN_PATH, db.errors)
 	if run is Dictionary:
-		for id in run.get("encounters", []):
-			db.run_order.append(str(id))
+		db.run_nodes = parse_run(run, db.errors)
+		for n in db.run_nodes:
+			if n.kind == RunNodeData.FIGHT:
+				db.run_order.append(n.encounter)
 	var hint_data = _read_json(HINTS_PATH, db.errors)
 	if hint_data is Dictionary:
 		for h in hint_data.get("hints", []):
@@ -71,6 +75,38 @@ func starter_cards() -> Array[CardData]:
 	return out
 
 
+## Cards for a list of ids (duplicates kept, unknown ids skipped).
+func cards_for(ids: PackedStringArray) -> Array[CardData]:
+	var out: Array[CardData] = []
+	for id in ids:
+		if cards.has(id):
+			out.append(cards[id])
+	return out
+
+
+## Every card sorted by id, so seeded draws over it are reproducible.
+func sorted_cards() -> Array[CardData]:
+	var ids := PackedStringArray(cards.keys())
+	ids.sort()
+	return cards_for(ids)
+
+
+## run.json: {"nodes": [...]} (see RunNodeData). The legacy form
+## {"encounters": [ids]} is still accepted and becomes fight nodes only.
+static func parse_run(data: Dictionary, errors: PackedStringArray) -> Array[RunNodeData]:
+	var out: Array[RunNodeData] = []
+	if data.has("nodes"):
+		for d in data["nodes"]:
+			if d is Dictionary:
+				out.append(RunNodeData.from_dict(d, errors))
+			else:
+				errors.append("run: node must be an object, got %s" % str(d))
+	else:
+		for id in data.get("encounters", []):
+			out.append(RunNodeData.fight(str(id)))
+	return out
+
+
 func encounter_enemies(enc: EncounterData) -> Array[EnemyData]:
 	var out: Array[EnemyData] = []
 	for id in enc.enemy_ids:
@@ -99,10 +135,14 @@ func _validate_refs() -> void:
 		if not cards.has(id):
 			errors.append("starter deck: unknown card '%s'" % id)
 	if run_order.is_empty():
-		errors.append("run order is empty")
-	for id in run_order:
-		if not encounters.has(id):
-			errors.append("run: unknown encounter '%s'" % id)
+		errors.append("run has no fight")
+	for n in run_nodes:
+		if n.kind == RunNodeData.FIGHT and not encounters.has(n.encounter):
+			errors.append("run: unknown encounter '%s'" % n.encounter)
+		for id in n.pool:
+			if not cards.has(id):
+				errors.append("run: reward pool has unknown card '%s'" % id)
+		errors.append_array(RunEffects.validate(n.effects, self))
 	errors.append_array(TutorialRules.validate(hints))
 	for enc in encounters.values():
 		for id in enc.enemy_ids:

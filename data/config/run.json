@@ -1,8 +1,8 @@
 {
-	"encounters": [
-		"01_drone",
-		"02_shrieker",
-		"03_tide_colossus",
-		"04_twins"
+	"nodes": [
+		{"type": "fight", "encounter": "01_drone"},
+		{"type": "fight", "encounter": "02_shrieker"},
+		{"type": "fight", "encounter": "03_tide_colossus"},
+		{"type": "fight", "encounter": "04_twins"}
 	]
 }

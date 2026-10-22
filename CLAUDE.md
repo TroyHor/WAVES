@@ -23,7 +23,9 @@
 - 拉伸 = 线性插值：长度 n → (n−1)·k + 1，四舍五入远离 0。
 - 结算前已放置的卡可以拖动/撤回并返还能量。同时归零判玩家负。
 - 无基础"格挡"，非位置性防御只来自遗物。
-- 一局（原型）：按 `data/config/run.json` 顺序线性打 4 场，HP 在战斗之间延续；失败即本局结束。
+- 一局：`data/config/run.json` 的 `nodes` 按顺序走节点（`fight` / `reward` / `rest` / `event`，详见 design.md 2.7）。HP、牌组、遗物在节点之间延续；失败即本局结束。当前内容仍是线性 4 场战斗。
+- 奖励：`reward` 节点按卡牌 `reward_weight` 从卡池加权不放回抽 `reward_offer_size`（暂定 3）张，选一张入牌组或跳过（`reward_allow_skip`）。
+- 遗物：`Relic` 钩子（开战 / 回合开始 / `modify_result` 在预览内 / 结算后判胜负前），`RelicRegistry` 按 id 创建；暂无正式遗物。
 - 新手引导：`data/tutorial/hints.json` 数据驱动（触发条件 + `after` 链 + 完成方式），每条只出现一次，进度存 `user://progress.json`。
 - 每回合能量 `energy_per_turn` = 3，抽牌 `hand_size` = 5，玩家 HP `player_max_hp` = 60。数值原则：前期低，让玩家自己学会规则。
 - 决定记录与仍待决定的问题见 `docs/design.md` 第 6、7 节。
@@ -41,7 +43,7 @@ data/cards/*.json        每张卡一个文件
 data/enemies/*.json      每个敌人一个文件（招式池）
 data/encounters/*.json   每场战斗一个文件（敌人列表、双子交换间隔）
 data/config/starter_deck.json  初始牌组
-data/config/run.json     一局的战斗顺序
+data/config/run.json     一局的节点序列（战斗 / 奖励 / 休息 / 事件）
 data/tutorial/hints.json 新手引导文案与触发条件
 assets/{art,fonts,audio} 正式素材放这里；路径只在 src/autoload/assets.gd 里登记
 tests/                   无头测试：run_tests.gd（运行器）、test_case.gd（断言基类）、unit/test_*.gd、
@@ -133,5 +135,7 @@ Godot 可执行文件路径可用环境变量 `GODOT` 覆盖。
 | 导出预设 `include_filter="data/*.json"` | JSON 不是 Godot 资源，不显式包含就不会进导出包。tests/docs/scripts 不导出。macOS 用内置 ad-hoc 签名，正式上架前再换开发者证书 + 公证。 |
 | 敌我示波器上下排列而非左右，叠加面板居中 | 波轨是时间轴，上下排列时同一格上下对齐，叠加关系一眼可见；左右排列会让对应格相隔半个屏幕。 |
 | 引导规则（`TutorialRules`）是纯函数，UI 只负责构建状态快照和显示 | 可测试；新增引导只改 JSON。 |
+| 一局 = 数据驱动的节点序列；奖励由（局种子, 节点序号）派生的纯函数生成 | 不存奖励也能复现；新节点类型只加一个 kind + RunState 方法。run.json 旧的 `encounters` 列表仍兼容。 |
+| 遗物 = `Relic` 子类经 `RelicRegistry` 注册，`modify_result` 在 `Combat.preview()` 内调用 | 预览与结算走同一路径，遗物效果在拖牌时就能看到。 |
 | 敌人意图被随机叠加完全抵消时重新随机 | 保证敌人每回合一定有攻击。 |
 | 每张卡打出后在结算前可撤回（拿起已放置的牌 = unplay） | 拖动只有一种状态，预览统一用"假设打出"的 PlayedCard 计算。抽牌类卡打出即生效，不可撤回。 |
