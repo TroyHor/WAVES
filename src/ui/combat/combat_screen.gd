@@ -84,7 +84,9 @@ var _hand_open := false
 var _press_card: CardInstance
 var _press_pos := Vector2.ZERO
 var _resolve_btn: Button
-var _menu_btn: Button
+## Pause panel (Esc): continue / back to the menu.
+var _pause: Control
+var _spark_t := 0.0
 var _toast: Label
 var _overlay: Control
 var _hint: HintPanel
@@ -186,11 +188,6 @@ func _ready() -> void:
 	_resolve_btn.pressed.connect(_resolve)
 	add_child(_resolve_btn)
 
-	_menu_btn = Button.new()
-	_menu_btn.text = "菜单"
-	_menu_btn.add_theme_font_size_override("font_size", Assets.fs(18))
-	_menu_btn.pressed.connect(func() -> void: app.show_menu())
-	add_child(_menu_btn)
 
 	_hand_root = Control.new()
 	_hand_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -236,6 +233,31 @@ func _make_device(flat: Vector2) -> DeskDevice:
 	return d
 
 
+## Full power: the transmitter keeps trembling and throws overload sparks.
+func _process(delta: float) -> void:
+	if combat == null or _tx_dev == null:
+		return
+	var full := combat.outcome == Combat.Outcome.ONGOING and not _animating \
+		and combat.energy <= 0 and not combat.played.is_empty()
+	_tx_dev.tremble = 1.0 if full else 0.0
+	if not full:
+		return
+	_spark_t -= delta
+	if _spark_t > 0.0:
+		return
+	_spark_t = randf_range(0.05, 0.12)
+	# Small bursts from the bulb column and along the transmitter's far edge.
+	var bulbs := _tx_dev.flat_rect_to_screen(_energy.get_rect())
+	var p := Vector2(randf_range(bulbs.position.x, bulbs.end.x), randf_range(bulbs.position.y, bulbs.end.y))
+	if randf() < 0.5:
+		var q0 := _tx_dev.global_position + _tx_dev.quad[0]
+		var q1 := _tx_dev.global_position + _tx_dev.quad[1]
+		p = q0.lerp(q1, randf())
+	var col := Assets.color("energy").lerp(Color("ff8a3a"), randf() * 0.6)
+	for i in randi_range(2, 4):
+		_fx.spark(p, col)
+
+
 func _make_label(font_size: int, color: Color) -> Label:
 	var l := Label.new()
 	l.add_theme_font_size_override("font_size", Assets.fs(font_size))
@@ -253,43 +275,44 @@ func _layout() -> void:
 	_edge_y = h - float(Assets.DESK["edge_from_bottom"])
 	_layout_faces()
 
-	# Scope unit: upright at the back, top slightly wider than the bottom.
-	var y0 := 26.0
-	var y1 := _edge_y - 300.0
+	# Scope unit: big, upright at the back, top slightly wider than the
+	# bottom. The nearer devices overlap its foot and corners (they are drawn
+	# later, i.e. in front), which sells the depth of the desk.
+	var y0 := 22.0
+	var y1 := _edge_y - 210.0
 	var hs := y1 - y0
-	# Leave desk visible on both sides (menu key sits in the top-right corner).
-	var tw := minf(w - 480.0, hs * (SCOPE_FLAT.x / SCOPE_FLAT.y) * 1.03)
+	var tw := minf(w - 120.0, hs * (SCOPE_FLAT.x / SCOPE_FLAT.y) * 1.03)
 	var bw := tw * 0.95
 	var cx := w * 0.5
 	_scope_dev.set_quad(PackedVector2Array([Vector2(cx - tw * 0.5, y0), Vector2(cx + tw * 0.5, y0),
 		Vector2(cx + bw * 0.5, y1), Vector2(cx - bw * 0.5, y1)]))
 
-	# Transmitter lying on the desk in front: far edge narrower, foreshortened.
-	var t0 := y1 + 40.0
-	var t1 := _edge_y - 14.0
-	var nb := minf(w * 0.6, 1220.0)
-	var nt := nb * 0.86
+	# Transmitter lying on the desk in front, overlapping the scope's foot
+	# (but not its readout). Gentle perspective: far edge a little narrower.
+	var t0 := y1 - 12.0
+	var t1 := _edge_y - 8.0
+	var nb := minf(w * 0.62, 1240.0)
+	var nt := nb * 0.94
 	_tx_dev.set_quad(PackedVector2Array([Vector2(cx - nt * 0.5, t0), Vector2(cx + nt * 0.5, t0),
 		Vector2(cx + nb * 0.5, t1), Vector2(cx - nb * 0.5, t1)]))
 
-	# Line-integrity meter standing to the left of the transmitter.
-	var gx1 := cx - nb * 0.5 - 36.0
-	var gy1 := _edge_y - 10.0
-	# Fits between the scope unit's foot and the desk edge.
-	var gh := minf(gy1 - (y1 + 24.0), (gx1 - 48.0) * GAUGE_FLAT.y / GAUGE_FLAT.x)
+	# Line-integrity meter standing at the transmitter's left, in front of the
+	# scope unit's lower-left corner.
+	var gy1 := _edge_y - 6.0
+	var gh := minf(340.0, gy1 - y0 - 200.0)
 	var gw := gh * GAUGE_FLAT.x / GAUGE_FLAT.y
+	var gx1 := cx - nb * 0.5 + 24.0
 	var gy0 := gy1 - gh
 	_gauge_dev.set_quad(PackedVector2Array([Vector2(gx1 - gw, gy0), Vector2(gx1, gy0),
 		Vector2(gx1 - gw * 0.02, gy1), Vector2(gx1 - gw * 0.98, gy1)]))
 
-	# Duty note to the right of the transmitter; menu key in the far corner.
-	var nx := cx + nb * 0.5 + 40.0
-	_note.position = Vector2(nx, t0 - 10.0)
-	_note.size = Vector2(minf(w - nx - 48.0, 280.0), 200.0)
+	# Duty note dropped on the desk at the right, overlapping the
+	# transmitter's corner but below the scope's readout.
+	var nx := cx + nb * 0.5 - 24.0
+	_note.size = Vector2(minf(w - nx - 30.0, 290.0), 190.0)
+	_note.position = Vector2(nx, t0 + 8.0)
 	_note.pivot_offset = _note.size * 0.5
-	_note.rotation = 0.05
-	_menu_btn.position = Vector2(w - 170.0, 26.0)
-	_menu_btn.size = Vector2(130.0, 48.0)
+	_note.rotation = 0.07
 
 	# Fire key click area = the key's footprint on screen.
 	_resolve_btn.position = _tx_dev.flat_rect_to_screen(_fire_art.get_rect()).position
@@ -815,6 +838,11 @@ func _placed_card_at(mouse: Vector2) -> PlayedCard:
 
 
 func _input(event: InputEvent) -> void:
+	if _pause != null:
+		if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+			_hide_pause()
+			get_viewport().set_input_as_handled()
+		return
 	if _overlay != null:
 		return
 	if event is InputEventMouseMotion:
@@ -869,7 +897,10 @@ func _input(event: InputEvent) -> void:
 			KEY_ESCAPE:
 				if _drag_card != null:
 					_end_drag(false)
-				_set_hand_open(false)
+				elif _hand_open:
+					_set_hand_open(false)
+				else:
+					_show_pause()
 			KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 				if _drag_card == null:
 					_resolve()
@@ -966,6 +997,38 @@ func _resolve() -> void:
 		_show_overlay()
 
 
+## Esc: a small bakelite panel to continue or leave the fight.
+func _show_pause() -> void:
+	if _pause != null or _overlay != null:
+		return
+	_pause = Control.new()
+	_pause.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(_pause)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.55)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_pause.add_child(dim)
+	var panel := Panel.new()
+	panel.size = Vector2(520, 320)
+	panel.position = (size - panel.size) * 0.5
+	_pause.add_child(panel)
+	var title := Label.new()
+	title.text = "暂停"
+	title.add_theme_font_size_override("font_size", Assets.fs(40))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.position = Vector2(0, 30)
+	title.size = Vector2(panel.size.x, 60)
+	panel.add_child(title)
+	_add_overlay_button(panel, "继续", Vector2(130, 120), _hide_pause)
+	_add_overlay_button(panel, "返回菜单", Vector2(130, 200), func() -> void: app.show_menu())
+
+
+func _hide_pause() -> void:
+	if _pause != null:
+		_pause.queue_free()
+		_pause = null
+
+
 func _show_toast(text: String) -> void:
 	_toast.text = text
 	_toast.modulate.a = 1.0
@@ -1049,7 +1112,7 @@ func _demo_setup() -> void:
 					best = pc
 		if best == null:
 			return
-		if step < 2:
+		if step < 2 or app._args.has("demofull"):
 			combat.play(best.card, best.offset)
 		else:
 			_drag_card = best.card

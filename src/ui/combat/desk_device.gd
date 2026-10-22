@@ -21,6 +21,9 @@ var _h := []      ## flat uv (0..1) -> local pixel
 var _hinv := []   ## local pixel -> flat uv
 var _shake := 0.0
 var _shake_t := 0.0
+## Continuous tremble amplitude (0 = still), e.g. the overloaded transmitter.
+var tremble := 0.0
+var _tremble_t := 0.0
 var _base_pos := Vector2.ZERO
 
 
@@ -112,12 +115,17 @@ func shake(amount: float) -> void:
 
 
 func _process(delta: float) -> void:
+	var offset := Vector2.ZERO
 	if _shake > 0.0:
 		_shake_t += delta
 		_shake = move_toward(_shake, 0.0, delta * 1.8)
-		position = _base_pos + Vector2(sin(_shake_t * 55.0), cos(_shake_t * 47.0) * 0.4) * _shake * 6.0
-	elif position != _base_pos:
-		position = _base_pos
+		offset += Vector2(sin(_shake_t * 55.0), cos(_shake_t * 47.0) * 0.4) * _shake * 6.0
+	if tremble > 0.0:
+		_tremble_t += delta
+		# Fast, irregular hum: two incommensurate frequencies per axis.
+		offset += Vector2(sin(_tremble_t * 71.0) + sin(_tremble_t * 43.0) * 0.6,
+			cos(_tremble_t * 63.0) * 0.5 + sin(_tremble_t * 29.0) * 0.4) * tremble * 1.6
+	position = _base_pos + offset
 
 
 func _draw() -> void:

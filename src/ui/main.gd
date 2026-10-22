@@ -11,6 +11,7 @@ extends Control
 ##   --autoresolve  (with --demo) resolve the turn shortly after start
 ##   --shotframes=N  frames to wait before --shot (default 45)
 ##   --openhand  (combat) open the hand (raised and spread)
+##   --demofull  (with --demo) also play the third card: power full
 ##   --selftest  runs tests/ui_smoke.gd through the real input path and quits
 
 const FX_SHADER := preload("res://src/ui/crt/screen_fx.gdshader")
