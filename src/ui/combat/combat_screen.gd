@@ -275,44 +275,45 @@ func _layout() -> void:
 	_edge_y = h - float(Assets.DESK["edge_from_bottom"])
 	_layout_faces()
 
-	# Scope unit: big, upright at the back, top slightly wider than the
-	# bottom. The nearer devices overlap its foot and corners (they are drawn
-	# later, i.e. in front), which sells the depth of the desk.
-	var y0 := 22.0
-	var y1 := _edge_y - 210.0
+	# Scope unit: upright at the back, top slightly wider than the bottom.
+	var y0 := 26.0
+	var y1 := _edge_y - 300.0
 	var hs := y1 - y0
-	var tw := minf(w - 120.0, hs * (SCOPE_FLAT.x / SCOPE_FLAT.y) * 1.03)
+	var tw := minf(w - 240.0, hs * (SCOPE_FLAT.x / SCOPE_FLAT.y) * 1.03)
 	var bw := tw * 0.95
 	var cx := w * 0.5
 	_scope_dev.set_quad(PackedVector2Array([Vector2(cx - tw * 0.5, y0), Vector2(cx + tw * 0.5, y0),
 		Vector2(cx + bw * 0.5, y1), Vector2(cx - bw * 0.5, y1)]))
 
-	# Transmitter lying on the desk in front, overlapping the scope's foot
-	# (but not its readout). Gentle perspective: far edge a little narrower.
-	var t0 := y1 - 12.0
-	var t1 := _edge_y - 8.0
-	var nb := minf(w * 0.62, 1240.0)
-	var nt := nb * 0.94
+	# Transmitter in front, propped up toward the operator so its screen
+	# reads easily: little foreshortening, far edge only slightly narrower.
+	var t0 := y1 + 16.0
+	var t1 := _edge_y - 10.0
+	var nb := minf(w * 0.6, 1220.0)
+	var nt := nb * 0.97
 	_tx_dev.set_quad(PackedVector2Array([Vector2(cx - nt * 0.5, t0), Vector2(cx + nt * 0.5, t0),
 		Vector2(cx + nb * 0.5, t1), Vector2(cx - nb * 0.5, t1)]))
 
-	# Line-integrity meter standing at the transmitter's left, in front of the
-	# scope unit's lower-left corner.
-	var gy1 := _edge_y - 6.0
-	var gh := minf(340.0, gy1 - y0 - 200.0)
-	var gw := gh * GAUGE_FLAT.x / GAUGE_FLAT.y
-	var gx1 := cx - nb * 0.5 + 24.0
+	# Line-integrity meter standing at the left, in front of the scope's
+	# lower-left corner, turned a little counter-clockwise (not too tidy).
+	var gx1 := cx - nb * 0.5 - 36.0
+	var gw := minf(gx1 - 48.0, 300.0)
+	var gh := gw * GAUGE_FLAT.y / GAUGE_FLAT.x
+	var gy1 := _edge_y - 10.0
 	var gy0 := gy1 - gh
-	_gauge_dev.set_quad(PackedVector2Array([Vector2(gx1 - gw, gy0), Vector2(gx1, gy0),
-		Vector2(gx1 - gw * 0.02, gy1), Vector2(gx1 - gw * 0.98, gy1)]))
+	var gq := PackedVector2Array([Vector2(gx1 - gw, gy0), Vector2(gx1, gy0),
+		Vector2(gx1 - gw * 0.02, gy1), Vector2(gx1 - gw * 0.98, gy1)])
+	var gc := Vector2(gx1 - gw * 0.5, (gy0 + gy1) * 0.5)
+	for i in gq.size():
+		gq[i] = gc + (gq[i] - gc).rotated(-0.09)
+	_gauge_dev.set_quad(gq)
 
-	# Duty note dropped on the desk at the right, overlapping the
-	# transmitter's corner but below the scope's readout.
-	var nx := cx + nb * 0.5 - 24.0
-	_note.size = Vector2(minf(w - nx - 30.0, 290.0), 190.0)
-	_note.position = Vector2(nx, t0 + 8.0)
+	# Duty note on the desk to the right of the transmitter.
+	var nx := cx + nb * 0.5 + 40.0
+	_note.size = Vector2(minf(w - nx - 48.0, 280.0), 200.0)
+	_note.position = Vector2(nx, t0 - 10.0)
 	_note.pivot_offset = _note.size * 0.5
-	_note.rotation = 0.07
+	_note.rotation = 0.05
 
 	# Fire key click area = the key's footprint on screen.
 	_resolve_btn.position = _tx_dev.flat_rect_to_screen(_fire_art.get_rect()).position
