@@ -10,7 +10,7 @@ extends Control
 ##   --runfight  start a new run and jump into its first fight
 ##   --autoresolve  (with --demo) resolve the turn shortly after start
 ##   --shotframes=N  frames to wait before --shot (default 45)
-##   --expandcard  (combat) show the first hand card enlarged
+##   --openhand  (combat) open the hand (raised and spread)
 ##   --selftest  runs tests/ui_smoke.gd through the real input path and quits
 
 const FX_SHADER := preload("res://src/ui/crt/screen_fx.gdshader")
@@ -91,8 +91,8 @@ func _ready() -> void:
 		start_combat(_args["encounter"], int(_args.get("seed", randi())))
 	else:
 		show_menu()
-	if _args.has("expandcard") and _screen.has_method("_toggle_expanded"):
-		_screen._toggle_expanded.call_deferred(_screen.combat.deck.hand[0])
+	if _args.has("openhand") and _screen.has_method("_set_hand_open"):
+		_screen._set_hand_open.call_deferred(true)
 	if _args.has("autoresolve") and _screen.has_method("demo_resolve"):
 		_screen.demo_resolve.call_deferred()
 	if _args.has("shot"):

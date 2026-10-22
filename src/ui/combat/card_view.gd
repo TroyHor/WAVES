@@ -13,8 +13,16 @@ var flipped := false
 var ghost := false
 var _hovered := false
 var _t := randf() * 10.0
-## Resting scale: hand cards are held small, the enlarged card is big.
+## Resting scale: held cards are small, the opened hand is full size.
 var base_scale := 1.0
+## Hand layout targets: the card glides toward them (fan / open hand).
+var use_targets := false
+var target_pos := Vector2.ZERO
+var target_rot := 0.0
+## Seconds to wait before gliding (staggers cards flying in from the pile).
+var hold := 0.0
+## How far the card rises (local -y) while hovered.
+var hover_lift := 16.0
 
 
 func _init(p_card: CardInstance) -> void:
@@ -40,15 +48,24 @@ func _gui_input(event: InputEvent) -> void:
 ## Gentle idle sway; hovering straightens the card and lifts it.
 func _process(delta: float) -> void:
 	_t += delta
-	var target := 0.0 if (_hovered or ghost) else sin(_t * 1.3) * 0.025
-	rotation = lerpf(rotation, target, minf(1.0, delta * 8.0))
+	if use_targets:
+		if hold > 0.0:
+			hold -= delta
+		else:
+			position = position.lerp(target_pos, minf(1.0, delta * 12.0))
+	var sway := 0.0 if (_hovered or ghost) else sin(_t * 1.3) * 0.015
+	var target := (target_rot if use_targets else 0.0) + sway
+	if _hovered and use_targets:
+		target = 0.0
+	rotation = lerpf(rotation, target, minf(1.0, delta * 10.0))
+	z_index = 50 if _hovered else 0
 	var s := base_scale * (1.12 if _hovered and not ghost else 1.0)
 	scale = scale.lerp(Vector2(s, s), minf(1.0, delta * 12.0))
 
 
 func _draw() -> void:
 	var font := get_theme_default_font()
-	var lift := -16.0 if _hovered and playable and not ghost else 0.0
+	var lift := -hover_lift if _hovered and not ghost else 0.0
 	var accent := Assets.color("player_wave") if playable else Assets.color("disabled")
 	var text := Assets.color("text") if playable else Assets.color("text_dim")
 	var r := Rect2(Vector2(0, lift), CARD_SIZE)

@@ -23,7 +23,7 @@ func run(app: Node) -> int:
 	var card := view.card
 	var panel: MergedView = screen._merged
 	var target := panel.global_position + Vector2(panel.cell_center_x(8), panel.size.y * 0.4)
-	await _drag(view.global_position + view.size * 0.5, target)
+	await _drag(_card_center(view), target)
 	var played := combat.find_played(card)
 	_check(played != null, "card was played by dragging onto the scope")
 	_check(combat.energy == combat.rules.energy_per_turn - card.data.cost, "energy spent")
@@ -41,7 +41,8 @@ func run(app: Node) -> int:
 
 	# 3. Play it again and resolve with Enter.
 	view = _first_wave_card(screen)
-	await _drag(view.global_position + view.size * 0.5, target)
+	await _app.get_tree().create_timer(0.6).timeout
+	await _drag(_card_center(view), target)
 	var enemy := combat.front_enemy()
 	var expected_hp := enemy.hp - combat.preview().to_enemy
 	var expected_player := combat.player_hp - combat.preview().to_player
@@ -65,6 +66,11 @@ func run(app: Node) -> int:
 	await _frames(3)
 	_check(app.run.index == 1 and app.run.player_hp == 41, "run advanced with HP carried over")
 	return _finish()
+
+
+## Visual centre of a (possibly scaled / rotated) card.
+func _card_center(view: CardView) -> Vector2:
+	return view.get_global_transform() * (CardView.CARD_SIZE * 0.5)
 
 
 func _first_wave_card(screen: Control) -> CardView:

@@ -6,8 +6,9 @@ extends Control
 ##   top:    receiver (observation ports with the enemy, enemy signal screen)
 ##   middle: counter box | main oscilloscope | line-integrity box
 ##   bottom: transmitter (power lamps, your signal screen, fire key)
-##   beyond the desk's front edge: the hand of punch cards (small; click to
-##   enlarge), the draw pile on the left and the discard pile on the right.
+##   beyond the desk's front edge: the hand of punch cards held as a small
+##   overlapping fan (click opens the whole hand, raised and spread over the
+##   desk), the draw pile on the left and the discard pile on the right.
 ## All three wave screens share the same cell columns; spacing uses the
 ## InstrumentStyle size tokens.
 ##
@@ -26,10 +27,10 @@ const MARGIN_TOP := 56.0
 ## rows read as standing at different depths on the desk. Screens keep their
 ## shared columns; only the cases narrow.
 const DEPTH_INSET := 40.0
-## Hand cards are held small below the desk edge; the clicked card is shown
-## enlarged on the desk.
-const HAND_SCALE := 0.72
-const EXPANDED_SCALE := 1.75
+## Held hand: small overlapping fan below the desk edge. Open hand: raised,
+## full size and spread out over the desk.
+const HAND_SCALE := 0.62
+const OPEN_SCALE := 1.05
 ## Grid inset inside the main scope (name plate on the left, knobs on the right).
 const GRID_INSET_L := 150.0
 const GRID_INSET_R := 110.0
@@ -70,9 +71,10 @@ var _last_draw_count := -1
 var _enemy_area := Rect2()
 ## Y of the desk's front edge (the hand is held below it).
 var _edge_y := 0.0
-## Card shown enlarged on the desk after a click (null when none).
-var _expanded: CardView
-## A card pressed but not yet dragged: release = click (enlarge), move = drag.
+## Whether the hand is opened (raised, enlarged and spread).
+var _hand_open := false
+## A card pressed but not yet dragged: release = click (open/close the hand),
+## move = drag.
 var _press_card: CardInstance
 var _press_pos := Vector2.ZERO
 var _resolve_btn: Button
@@ -333,16 +335,45 @@ func _layout_enemies(animate: bool) -> void:
 	_receiver.queue_redraw()
 
 
-## Hand cards are held small below the desk edge, bottoms aligned.
-func _layout_hand() -> void:
-	var gap := 10.0
-	var cw := CardView.CARD_SIZE.x * HAND_SCALE
-	var total := _card_views.size() * cw + maxf(0, _card_views.size() - 1) * gap
-	var cx := (size.x - total) * 0.5 + cw * 0.5
-	for v in _card_views:
-		v.base_scale = HAND_SCALE
-		v.position = Vector2(cx - CardView.CARD_SIZE.x * 0.5, size.y - 10.0 - CardView.CARD_SIZE.y)
-		cx += cw + gap
+## Fan layout. Held: small, overlapping, fanned, below the desk edge.
+## Open: raised over the desk, full size, spread with a gentle arc.
+## `snap` places cards immediately (rebuild/resize) instead of gliding.
+func _layout_hand(snap := false) -> void:
+	var n := _card_views.size()
+	if n == 0:
+		return
+	var W := CardView.CARD_SIZE.x
+	var H := CardView.CARD_SIZE.y
+	var s := OPEN_SCALE if _hand_open else HAND_SCALE
+	var spacing := W * s * (1.0 + 0.08) if _hand_open else W * s * 0.52
+	var max_w := size.x - 2.0 * 220.0
+	if spacing * (n - 1) + W * s > max_w:
+		spacing = (max_w - W * s) / maxf(1.0, n - 1)
+	var spread := minf(0.05 * (n - 1), 0.3) if not _hand_open else minf(0.02 * (n - 1), 0.1)
+	var base_y := _edge_y + H * 0.06 if _hand_open else size.y + H * s * 0.12
+	var arc := 3.0 if _hand_open else 7.0
+	var mid := (n - 1) * 0.5
+	for i in n:
+		var v := _card_views[i]
+		var k := float(i) - mid
+		var cx := size.x * 0.5 + k * spacing
+		var by := base_y + k * k * arc
+		v.base_scale = s
+		v.use_targets = true
+		v.hover_lift = 18.0 if _hand_open else 60.0
+		v.target_pos = Vector2(cx - W * 0.5, by - H)
+		v.target_rot = (k / maxf(1.0, mid)) * spread * 0.5 if n > 1 else 0.0
+		if snap:
+			v.position = v.target_pos
+			v.rotation = v.target_rot
+			v.scale = Vector2(s, s)
+
+
+func _set_hand_open(open: bool) -> void:
+	if open == _hand_open:
+		return
+	_hand_open = open
+	_layout_hand(false)
 
 
 ## Rect (screen-local) of a named UI element, for tutorial highlighting.
@@ -376,8 +407,6 @@ func refresh() -> void:
 
 
 func _rebuild_hand() -> void:
-	if _expanded != null and not _expanded.card in combat.deck.hand:
-		_close_expanded()
 	for v in _card_views:
 		v.queue_free()
 	_card_views.clear()
@@ -388,7 +417,7 @@ func _rebuild_hand() -> void:
 		v.grabbed.connect(_on_card_grabbed)
 		_hand_root.add_child(v)
 		_card_views.append(v)
-	_layout_hand()
+	_layout_hand(true)
 	_animate_draws()
 
 
@@ -403,18 +432,16 @@ func _animate_draws() -> void:
 				Assets.color("text_dim"), i * 0.04, 0.35, 7.0)
 		delay = 0.3
 	_last_draw_count = draw_count
-	var from := _draw_pile.get_global_rect().get_center() - _hand_root.global_position - CardView.CARD_SIZE * 0.5
+	var from := _draw_pile.get_global_rect().get_center() - _hand_root.global_position - CardView.CARD_SIZE * Vector2(0.5, 1.0)
 	var known := {}
 	for v in _card_views:
 		known[v.card.uid] = true
 		if _known_hand.has(v.card.uid):
 			continue
-		var target := v.position
 		v.position = from
 		v.scale = Vector2(0.3, 0.3)
 		v.rotation = -0.4
-		create_tween().tween_property(v, "position", target, 0.35).set_delay(delay) \
-			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		v.hold = delay
 		delay += 0.07
 	_known_hand = known
 
@@ -442,6 +469,7 @@ func _animate_discards(played: Array[PlayedCard]) -> void:
 	for v in flying:
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.ghost = true
+		v.use_targets = false
 		var tw := create_tween().set_parallel(true)
 		tw.tween_property(v, "global_position", to, 0.35).set_delay(delay).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 		tw.tween_property(v, "modulate:a", 0.0, 0.2).set_delay(delay + 0.2)
@@ -595,38 +623,18 @@ func _on_card_grabbed(view: CardView) -> void:
 	_press_pos = get_global_mouse_position()
 
 
-func _toggle_expanded(card: CardInstance) -> void:
-	var same := _expanded != null and _expanded.card == card
-	_close_expanded()
-	if same:
-		return
-	_expanded = CardView.new(card)
-	_expanded.base_scale = EXPANDED_SCALE
-	_expanded.scale = Vector2.ONE * HAND_SCALE
-	_expanded.playable = combat.can_play(card)
-	_expanded.grabbed.connect(_on_card_grabbed)
-	add_child(_expanded)
-	# Shown on the desk, just above the edge, centred.
-	_expanded.position = Vector2(size.x * 0.5 - CardView.CARD_SIZE.x * 0.5, _edge_y - 6.0 - CardView.CARD_SIZE.y)
-
-
-func _close_expanded() -> void:
-	if _expanded != null:
-		_expanded.queue_free()
-		_expanded = null
-
-
+## True if `p` is over any hand card (respecting its rotation and scale).
 func _point_on_cards(p: Vector2) -> bool:
-	if _expanded != null and Rect2(_expanded.global_position + _expanded.pivot_offset * (Vector2.ONE - _expanded.scale), CardView.CARD_SIZE * _expanded.scale).has_point(p):
-		return true
 	for v in _card_views:
-		if v.get_global_rect().has_point(p):
+		var local := v.get_global_transform().affine_inverse() * p
+		if Rect2(Vector2.ZERO, CardView.CARD_SIZE).has_point(local):
 			return true
 	return false
 
 
 func _start_drag(card: CardInstance, grab: int, flipped: bool) -> void:
-	_close_expanded()
+	# The opened hand would cover the transmitter: fold it while dragging.
+	_hand_open = false
 	_drag_card = card
 	_drag_grab = grab
 	_drag_flipped = flipped
@@ -731,8 +739,8 @@ func _input(event: InputEvent) -> void:
 					combat.set_flipped(p.card, not p.flipped)
 					_refresh_preview()
 		elif event.button_index == MOUSE_BUTTON_LEFT and _drag_card == null and not _animating:
-			if _expanded != null and not _point_on_cards(event.position):
-				_close_expanded()
+			if _hand_open and not _point_on_cards(event.position):
+				_set_hand_open(false)
 			var p := _placed_card_at(event.position)
 			if p != null and combat.can_unplay(p.card):
 				var grab := _cell_at(event.position) - p.offset
@@ -742,10 +750,9 @@ func _input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if _press_card != null:
-			# Released without moving: a click enlarges (or shrinks) the card.
-			var card := _press_card
+			# Released without moving: a click opens (or folds) the whole hand.
 			_press_card = null
-			_toggle_expanded(card)
+			_set_hand_open(not _hand_open)
 		elif _drag_card != null:
 			_end_drag(true)
 	elif event is InputEventKey and event.pressed and not event.echo:
@@ -755,7 +762,7 @@ func _input(event: InputEvent) -> void:
 			KEY_ESCAPE:
 				if _drag_card != null:
 					_end_drag(false)
-				_close_expanded()
+				_set_hand_open(false)
 			KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 				if _drag_card == null:
 					_resolve()
