@@ -7,6 +7,8 @@ extends Control
 ## Dev flags (after `--`): --encounter=ID --seed=N --demo --nocrt --shot=PATH
 ##   --notutorial  disable tutorial hints
 ##   --freshprogress  use an empty, unsaved tutorial progress (screenshots)
+##   --hintfrom=ID  (with --freshprogress) treat the hints listed before ID as
+##     seen, so screenshots can show a later hint
 ##   --runfight  start a new run and jump into its first fight
 ##   --autoresolve  (with --demo) resolve the turn shortly after start
 ##   --shotframes=N  frames to wait before --shot (default 45)
@@ -49,6 +51,11 @@ func _ready() -> void:
 	theme_res = ThemeFactory.shared()
 	progress = Progress.new() if _args.has("freshprogress") else Progress.load_from(Platform.save_path(Progress.FILE))
 	tutorial_enabled = not (_args.has("notutorial") or _args.has("selftest"))
+	if _args.has("hintfrom"):
+		for h in db.hints:
+			if h["id"] == _args["hintfrom"]:
+				break
+			progress.seen_hints[h["id"]] = true
 
 	_viewport = SubViewport.new()
 	_viewport.handle_input_locally = true

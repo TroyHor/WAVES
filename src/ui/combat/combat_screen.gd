@@ -111,7 +111,7 @@ var _spark_t := 0.0
 var _charge := 0.0
 var _toast: Label
 var _overlay: Control
-var _hint: HintPanel
+var _hint: HintSlip
 var _hint_data := {}
 
 # Drag state. Picking a placed wave back up unplays it, so every drag is a
@@ -399,6 +399,8 @@ func _layout() -> void:
 	_toast.position = Vector2(cx - 500.0, y0 + hs * 0.45)
 	_toast.size = Vector2(1000.0, 60.0)
 	_layout_hand()
+	if _hint != null:
+		_hint.place(_hint_spots(_hint_data.get("anchor", "none")))
 
 
 ## Flat layouts of the device faces (independent of the window size).
@@ -565,31 +567,6 @@ func _set_hand_open(open: bool) -> void:
 		return
 	_hand_open = open
 	_layout_hand(false)
-
-
-## Rect (screen-local) of a named UI element, for tutorial highlighting.
-func anchor_rect(anchor: String) -> Rect2:
-	match anchor:
-		"enemy_scope": return _scope_dev.flat_rect_to_screen(Rect2(0, 0, SCOPE_FLAT.x, SCOPE_RX_H + 10))
-		"counter": return _scope_dev.flat_rect_to_screen(_receiver.windows[1])
-		"player_scope": return _tx_dev.get_rect()
-		"collision": return _scope_dev.flat_rect_to_screen(_merged.get_rect())
-		"resolve": return _resolve_btn.get_rect()
-		"player_figure": return _gauge_dev.get_rect()
-		"energy": return _tx_dev.flat_rect_to_screen(_energy.get_rect())
-		"slot": return _foot_dev.get_rect()
-		"enemy_figure":
-			var front := combat.front_enemy()
-			if front != null:
-				var v: Dictionary = _enemy_views[front]
-				return _scope_dev.flat_rect_to_screen(v["figure"].get_rect().merge(v["panel"].get_rect()))
-		"hand":
-			if not _card_views.is_empty():
-				var r: Rect2 = _card_views[0].get_global_rect()
-				for c in _card_views:
-					r = r.merge(c.get_global_rect())
-				return Rect2(r.position - global_position, r.size)
-	return Rect2()
 
 
 ## Screen point over the transmitter screen at the centre of cell `t`.
@@ -830,19 +807,87 @@ func _update_tutorial(result: TrackResult) -> void:
 	if h.is_empty():
 		return
 	_hint_data = h
-	_hint = HintPanel.new()
+	_hint = HintSlip.new()
 	_hint.text = h["text"]
-	_hint.anchor_rect = anchor_rect(h.get("anchor", "none"))
-	_hint.show_button = h.get("complete", "button") == "button"
+	_hint.show_tick = h.get("complete", "button") == "button"
 	_hint.dismissed.connect(_complete_hint.bind("button"))
 	add_child(_hint)
+	# Under the hand, so held / dragged cards pass over the slip.
+	move_child(_hint, _hand_root.get_index())
+	_hint.place(_hint_spots(h.get("anchor", "none")))
+	_hint.appear()
+
+
+## Where a hint slip may go for `anchor`, best first (see HintSlip.place):
+## the knob strip right of the scope unit above the turn note ("side"), or
+## hanging from the desk edge left / right of the held hand ("floor"). None of
+## them covers a reading, the counters, the fire key or the slots; the
+## grease-pencil arrow runs over frames and desk to the real object.
+func _hint_spots(anchor: String) -> Array:
+	var cx := size.x * 0.5
+	var n := maxi(_card_views.size(), combat.rules.hand_size)
+	var hand_half := CardView.CARD_SIZE.x * HAND_SCALE * (1.0 + 0.52 * (n - 1)) * 0.5 + 40.0
+	var floor_top := _edge_y - 4.0
+	var floor_h := size.y - 4.0 - floor_top
+	var fl_x := _draw_pile.position.x + _draw_pile.size.x + 16.0
+	var fl := Rect2(fl_x, floor_top, cx - hand_half - fl_x, floor_h)
+	var fr := Rect2(cx + hand_half, floor_top, _discard_pile.position.x - 16.0 - cx - hand_half, floor_h)
+	var side_top := _scope_dev.get_rect().position.y + 4.0
+	var side := Rect2(_note.position.x, side_top, size.x - 6.0 - _note.position.x, _note.position.y - 16.0 - side_top)
+	# Frame band above the receiver tube: arrows to the left column run along it.
+	var band_y := _scope_dev.flat_to_screen(Vector2(0, InstrumentStyle.WINDOW_INSET * 0.5)).y
+	# Foot surface in front of slot t's slit (clear of standing cards).
+	var foot_pt := func(t: int) -> Vector2:
+		var sp := _slot.slit_point(t)
+		return _foot_dev.flat_to_screen(Vector2(sp.x + _slot.cell_width() * 0.4, (sp.y + FOOT_FLAT.y) * 0.5))
+	# `gap`: room kept free on the hand's side of each floor spot.
+	var floors := func(tip: Vector2, first_left: bool, align_l: float, align_r: float, gap: float) -> Array:
+		var l := {"spot": fl.grow_side(SIDE_RIGHT, -gap), "align": align_l, "tip": tip}
+		var r := {"spot": fr.grow_side(SIDE_LEFT, -gap), "align": align_r, "tip": tip}
+		return [l, r] if first_left else [r, l]
+	var along_top := func(tip: Vector2) -> Array:
+		return [{"spot": side, "prefer_y": side_top, "tip": tip,
+			"via": PackedVector2Array([Vector2(side.position.x - 10.0, band_y), Vector2(tip.x + 30.0, band_y)])}]
+	match anchor:
+		"enemy_scope":
+			var win: Rect2 = _receiver.windows[0]
+			# Tip on the glass just past the end of the trace.
+			var tip := _scope_dev.flat_to_screen(Vector2(_merged.position.x + _merged.grid_x1 + 10.0, win.get_center().y))
+			return [{"spot": side, "prefer_y": tip.y, "tip": tip, "start_dy": 70.0}]
+		"collision":
+			var tip := _scope_dev.flat_to_screen(Vector2(_merged.position.x + _merged.grid_x1 + 10.0,
+				_merged.position.y + _merged.size.y * 0.4))
+			return [{"spot": side, "prefer_y": tip.y, "tip": tip, "start_dy": 70.0}]
+		"enemy_figure":
+			var front := combat.front_enemy()
+			if front != null:
+				var fig: Rect2 = _enemy_views[front]["figure"].get_rect()
+				return along_top.call(_scope_dev.flat_to_screen(fig.position + fig.size * Vector2(0.5, 0.15)))
+		"counter":
+			var cw: Rect2 = _receiver.windows[1]
+			return along_top.call(_scope_dev.flat_to_screen(cw.position + Vector2(cw.size.x * 0.5, 6.0)))
+		"player_scope", "slot":
+			return floors.call(foot_pt.call(combat.rules.track_length - 4), false, 0.0, 1.0, 0.0)
+		"resolve":
+			var r := _resolve_btn.get_rect()
+			return floors.call(Vector2(r.get_center().x, r.end.y + 4.0), false, 0.0, 1.0, 0.0)
+		"energy":
+			var b := _tx_dev.flat_rect_to_screen(_energy.get_rect())
+			return floors.call(Vector2(b.get_center().x, b.end.y + 4.0), true, 0.0, 1.0, 0.0)
+		"player_figure":
+			var g := _gauge_dev.get_rect()
+			return floors.call(g.position + g.size * Vector2(0.92, 0.8), true, 0.0, 1.0, 0.0)
+		"hand":
+			# Room for a visible stroke between the slip and the fan.
+			return floors.call(Vector2(cx - hand_half + 70.0, size.y - 70.0), true, 1.0, 0.0, 70.0)
+	return [{"spot": side, "prefer_y": side_top}]
 
 
 func _complete_hint(kind: String) -> void:
 	if _hint == null or _hint_data.get("complete", "button") != kind:
 		return
 	app.progress.mark_seen(_hint_data["id"])
-	_hint.queue_free()
+	_hint.leave()
 	_hint = null
 	_hint_data = {}
 	if not _animating:
@@ -1225,7 +1270,7 @@ func _show_toast(text: String) -> void:
 
 func _show_overlay() -> void:
 	if _hint != null:
-		_hint.queue_free()
+		_hint.leave()
 		_hint = null
 	var won := combat.outcome == Combat.Outcome.WON
 	_overlay = Control.new()

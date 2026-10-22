@@ -111,6 +111,14 @@ const COLORS := {
 	# CRT phosphor (P31 green) for the result trace and the etched graticule.
 	"phosphor": Color("8dffb4"),
 	"graticule": Color("a8f0c8"),
+	# Duty-log paper (turn note, hint slips) and the grease pencil used to
+	# draw hint arrows across instruments and desk.
+	"paper": Color("e8dcc0"),
+	"paper_ink": Color("3a3328"),
+	"paper_rule": Color("9cb4c8", 0.5),
+	"paper_margin": Color("d98a8a", 0.5),
+	"tape": Color(1, 1, 0.92, 0.45),
+	"grease_pencil": Color("f3ead2"),
 }
 
 
