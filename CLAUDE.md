@@ -105,7 +105,8 @@ Godot 可执行文件路径可用环境变量 `GODOT` 覆盖。
 开发参数（写在 `--` 之后）：`--encounter=04_twins` 直接进入战斗，`--seed=N`，`--nocrt`，
 `--demo`（自动摆两张牌并模拟拖动第三张，用于截图），`--autoresolve`（配合 --demo 自动结算，用于截动画），
 `--shot=路径.png` + `--shotframes=N`（第 N 帧截图后退出），`--runfight`（新开一局直接进第一战），`--notutorial`，
-`--freshprogress`（用空白且不保存的引导进度，截图用），`--openhand`（展开手牌），`--demofull`（配合 --demo 打满功率），`--selftest`（UI 冒烟测试）。
+`--freshprogress`（用空白且不保存的引导进度，截图用），`--openhand`（展开手牌），`--demofull`（配合 --demo 打满功率），`--selftest`（UI 冒烟测试），
+`--scene3d`（战斗用 3D 对比原型 `src/ui/combat3d/`，仅此分支），`--camyaw=度数`（配合 --scene3d 绕场景转动镜头）。
 
 ## 技术决策记录
 | 决策 | 理由 |

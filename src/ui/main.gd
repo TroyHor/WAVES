@@ -13,12 +13,15 @@ extends Control
 ##   --openhand  (combat) open the hand (raised and spread)
 ##   --demofull  (with --demo) also play the third card: power full
 ##   --selftest  runs tests/ui_smoke.gd through the real input path and quits
+##   --scene3d  (combat) show the 3D comparison prototype (src/ui/combat3d);
+##     --camyaw=DEG orbits its camera
 
 const FX_SHADER := preload("res://src/ui/crt/screen_fx.gdshader")
 const DESK_SHADER := preload("res://src/ui/crt/desk.gdshader")
 const MenuScreen := preload("res://src/ui/menu_screen.gd")
 const CombatScreen := preload("res://src/ui/combat/combat_screen.gd")
 const RunMapScreen := preload("res://src/ui/run_map_screen.gd")
+const Combat3D := preload("res://src/ui/combat3d/combat_3d.gd")
 
 var db: GameDatabase
 var rules: RulesConfig
@@ -141,7 +144,7 @@ func finish_run_fight(combat: Combat) -> void:
 
 
 func _show_combat(combat: Combat, encounter_id: String, seed_value: int) -> void:
-	var screen := CombatScreen.new()
+	var screen = Combat3D.new() if _args.has("scene3d") else CombatScreen.new()
 	screen.app = self
 	screen.combat = combat
 	screen.encounter = db.encounter(encounter_id)
