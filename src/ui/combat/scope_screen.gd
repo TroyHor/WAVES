@@ -1,7 +1,9 @@
 class_name ScopeScreen
 extends Control
-## Grid and traces of a single side's signal (enemy or player), drawn inside a
-## FlatScopeView. Traces are straight segments between samples.
+## Grid and traces of a single side's signal (enemy or player), shown on a
+## monochrome phosphor tube (TubeScreen). Traces are straight segments
+## between samples. `phosphor` tints the screen and graticule (amber for the
+## receiver, cyan-white for the transmitter).
 
 var track_length := 16
 ## Local x where the grid starts, and its width (matches the merged panel).
@@ -14,6 +16,7 @@ var tint_color := Color.TRANSPARENT
 var highlight_cell := -1
 var amp_scale := 10.0
 var bg_color := Color(0, 0, 0, 0.35)
+var phosphor := Color("8dffb4")
 ## Resolve animation: traces slide toward the merged panel (dir +1 = down).
 var launch := 0.0
 var launch_dir := 1.0
@@ -44,14 +47,16 @@ func _draw() -> void:
 	var font := get_theme_default_font()
 	var r := _grid_rect()
 	var cw := cell_width()
-	draw_rect(r, bg_color)
+	draw_rect(Rect2(Vector2.ZERO, size), bg_color)
+	# Faint phosphor haze toward the centre of the tube.
+	draw_rect(r.grow(-r.size.y * 0.15), Color(phosphor, 0.025))
 	for t in mini(tint_track.size(), track_length):
 		if tint_track[t] != 0:
 			draw_rect(Rect2(r.position.x + t * cw, r.position.y, cw, r.size.y), Color(tint_color, 0.08))
 	if highlight_cell >= 0 and highlight_cell < track_length:
 		draw_rect(Rect2(r.position.x + highlight_cell * cw, r.position.y, cw, r.size.y), Color(Assets.color("net_wave"), 0.07))
-	var grid := Assets.color("grid")
-	var major := Assets.color("grid_major")
+	var grid := Color(phosphor, 0.12)
+	var major := Color(phosphor, 0.24)
 	for t in range(track_length + 1):
 		var x := r.position.x + t * cw
 		draw_line(Vector2(x, r.position.y), Vector2(x, r.end.y), major if t % 4 == 0 else grid, 1.0)

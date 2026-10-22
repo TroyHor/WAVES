@@ -50,15 +50,18 @@ var _counter_box: InstrumentCase
 var _integrity: InstrumentCase
 var _enemy_screen: ScopeScreen
 var _player_screen: ScopeScreen
+## Phosphor tubes holding the two screens (amber receiver, cyan transmitter).
+var _enemy_tube: TubeScreen
+var _player_tube: TubeScreen
 var _merged: MergedView
 var _fx: FxLayer
 var _hand_root: Control
 var _card_views: Array[CardView] = []
-var _player_hp: HpBar
+var _player_hp: NeedleMeter
 ## EnemyState -> {"figure": FigureView, "panel": EnemyPanel}
 var _enemy_views := {}
-var _to_enemy_label: Label
-var _to_player_label: Label
+var _to_enemy_label: FlipCounter
+var _to_player_label: FlipCounter
 var _turn_label: Label
 var _energy: EnergyView
 var _draw_pile: PileIcon
@@ -106,8 +109,10 @@ func _ready() -> void:
 	add_child(_counter_box)
 	_integrity = InstrumentCase.new()
 	add_child(_integrity)
-	_enemy_screen = _make_screen(1.0)
-	_player_screen = _make_screen(-1.0)
+	_enemy_screen = _make_screen(1.0, Color("ffb02e"), Color("170c02"))
+	_enemy_tube = _make_tube(_enemy_screen, Color(0.05, 0.03, 0.01))
+	_player_screen = _make_screen(-1.0, Color("4fd8ff"), Color("021318"))
+	_player_tube = _make_tube(_player_screen, Color(0.01, 0.04, 0.05))
 
 	_merged = MergedView.new()
 	_merged.track_length = combat.rules.track_length
@@ -124,15 +129,16 @@ func _ready() -> void:
 		add_child(panel)
 		_enemy_views[e] = {"figure": fig, "panel": panel}
 
-	_player_hp = HpBar.new()
-	_player_hp.label = ""
+	_player_hp = NeedleMeter.new()
 	_player_hp.color = Assets.color("player_wave")
-	_player_hp.font_size = 54
-	_player_hp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_player_hp)
 
-	_to_enemy_label = _make_label(52, Assets.color("damage_to_enemy"))
-	_to_player_label = _make_label(52, Assets.color("damage_to_player"))
+	_to_enemy_label = FlipCounter.new()
+	_to_enemy_label.color = Assets.color("damage_to_enemy")
+	add_child(_to_enemy_label)
+	_to_player_label = FlipCounter.new()
+	_to_player_label.color = Assets.color("damage_to_player")
+	add_child(_to_player_label)
 	_turn_label = _make_label(20, Assets.color("case_print"))
 	for up in [true, false]:
 		var arrow := ArrowIcon.new()
@@ -184,16 +190,21 @@ func _ready() -> void:
 	refresh()
 
 
-func _make_screen(dir: float) -> ScopeScreen:
+func _make_screen(dir: float, phosphor: Color, bg: Color) -> ScopeScreen:
 	var sc := ScopeScreen.new()
 	sc.track_length = combat.rules.track_length
 	sc.launch_dir = dir
-	sc.bg_color = Color(0, 0, 0, 0)
+	sc.phosphor = phosphor
+	sc.bg_color = bg
 	sc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Launched traces must not spill out of the window.
-	sc.clip_contents = true
-	add_child(sc)
 	return sc
+
+
+func _make_tube(screen: ScopeScreen, glass: Color) -> TubeScreen:
+	var tube := TubeScreen.new(screen)
+	tube.glass_tint = glass
+	add_child(tube)
+	return tube
 
 
 func _make_label(font_size: int, color: Color) -> Label:
@@ -237,17 +248,18 @@ func _layout() -> void:
 
 	# Receiver (top) and transmitter (bottom) share the outer edges x0..x1;
 	# their screens line up with the main tube.
-	for row in [[_receiver, _enemy_screen, e0, DEPTH_INSET], [_transmitter, _player_screen, p0, 0.0]]:
+	for row in [[_receiver, _enemy_tube, e0, DEPTH_INSET], [_transmitter, _player_tube, p0, 0.0]]:
 		var case: InstrumentCase = row[0]
-		var screen: ScopeScreen = row[1]
+		var tube: TubeScreen = row[1]
 		var inset: float = row[3]
 		case.position = Vector2(x0 + inset, row[2])
 		case.size = Vector2(x1 - x0 - inset * 2, row_h)
 		var win := Rect2(sx0 - case.position.x, IN, sx1 - sx0, row_h - IN * 2)
 		case.windows = [win]
-		screen.position = case.position + win.position
-		screen.size = win.size
-		screen.grid_x0 = gx0 - screen.position.x
+		tube.position = case.position + win.position
+		tube.size = win.size
+		var screen: ScopeScreen = tube.content
+		screen.grid_x0 = gx0 - tube.position.x
 		screen.grid_w = gx1 - gx0
 	var right_x := sx1 + G + 6.0
 	var right_w := x1 - IN - right_x
@@ -269,8 +281,10 @@ func _layout() -> void:
 	_transmitter.labels = [{"pos": Vector2(IN, InstrumentStyle.TITLE_BASELINE), "text": "发射功率", "size": 20, "width": left_w, "align": HORIZONTAL_ALIGNMENT_CENTER}]
 	_energy.position = Vector2(x0 + IN, p0 + InstrumentStyle.TITLE_BASELINE + 12)
 	_energy.size = Vector2(left_w, row_h - InstrumentStyle.TITLE_BASELINE - 12 - IN)
-	_resolve_btn.position = Vector2(right_x, p0 + IN)
-	_resolve_btn.size = Vector2(right_w, row_h - IN * 2)
+	# Fire key with its ready lamp above it.
+	_transmitter.lamps = [{"center": Vector2(right_x - x0 + right_w * 0.5, IN + 8), "on": false, "color": Color("ff4d3a")}]
+	_resolve_btn.position = Vector2(right_x, p0 + IN + 26)
+	_resolve_btn.size = Vector2(right_w, row_h - IN * 2 - 26)
 
 	# Counter box (left) and line-integrity box (right), aligned to x0 / x1.
 	var box_win := Rect2(IN, InstrumentStyle.TITLE_BASELINE + 16, SIDE_W - IN * 2, mid_h - InstrumentStyle.TITLE_BASELINE - 16 - IN)
@@ -284,11 +298,13 @@ func _layout() -> void:
 	var row2 := m0 + box_win.position.y + box_win.size.y * 0.72
 	_arrows[0].position = Vector2(x0 + IN + 16, row1 - 26)
 	_arrows[1].position = Vector2(x0 + IN + 16, row2 - 26)
-	_to_enemy_label.position = Vector2(x0 + IN + 76, row1 - Assets.fs(52) * 0.7)
-	_to_player_label.position = Vector2(x0 + IN + 76, row2 - Assets.fs(52) * 0.7)
-	var hp_h := minf(box_win.size.y - 24.0, Assets.fs(54) * 2.6)
-	_player_hp.position = _integrity.position + box_win.position + Vector2(16, (box_win.size.y - hp_h) * 0.5)
-	_player_hp.size = Vector2(box_win.size.x - 32, hp_h)
+	var ctr_h := minf(box_win.size.y * 0.26, 84.0)
+	for pair in [[_to_enemy_label, row1], [_to_player_label, row2]]:
+		var fc: FlipCounter = pair[0]
+		fc.position = Vector2(x0 + IN + 72, pair[1] - ctr_h * 0.5)
+		fc.size = Vector2(box_win.size.x - 72 - 10, ctr_h)
+	_player_hp.position = _integrity.position + box_win.position + Vector2(10, 10)
+	_player_hp.size = Vector2(box_win.size.x - 20, box_win.size.y - 20)
 	for b in [_counter_box, _integrity, _receiver, _transmitter]:
 		b.queue_redraw()
 
@@ -380,6 +396,7 @@ func _set_hand_open(open: bool) -> void:
 func anchor_rect(anchor: String) -> Rect2:
 	match anchor:
 		"enemy_scope": return _receiver.get_rect()
+		"counter": return _counter_box.get_rect()
 		"player_scope": return _transmitter.get_rect()
 		"collision": return _merged.get_rect()
 		"resolve": return _resolve_btn.get_rect()
@@ -541,8 +558,8 @@ func _refresh_preview() -> void:
 
 	_player_hp.set_values(combat.player_hp, combat.player_max_hp, result.to_player)
 	_update_enemy_panels(result.to_enemy)
-	_to_enemy_label.text = str(result.to_enemy)
-	_to_player_label.text = str(result.to_player)
+	_to_enemy_label.value = result.to_enemy
+	_to_player_label.value = result.to_player
 	_turn_label.text = "第 %d 回合" % combat.turn
 	if combat.swap_in() > 0:
 		_turn_label.text += "\n%d 回合后交换" % combat.swap_in()
@@ -551,6 +568,9 @@ func _refresh_preview() -> void:
 	_draw_pile.count = combat.deck.draw_pile.size()
 	_discard_pile.count = combat.deck.discard_pile.size()
 	_resolve_btn.disabled = _animating or combat.outcome != Combat.Outcome.ONGOING
+	if not _transmitter.lamps.is_empty():
+		_transmitter.lamps[0]["on"] = not _resolve_btn.disabled
+		_transmitter.queue_redraw()
 	_update_tutorial(result)
 
 
@@ -651,7 +671,7 @@ func _start_drag(card: CardInstance, grab: int, flipped: bool) -> void:
 
 ## Both bench scopes and the merged panel together form the drop area.
 func _over_scopes(mouse: Vector2) -> bool:
-	var r := _enemy_screen.get_global_rect().merge(_player_screen.get_global_rect())
+	var r := _enemy_tube.get_global_rect().merge(_player_tube.get_global_rect())
 	return r.grow(10).has_point(mouse)
 
 
