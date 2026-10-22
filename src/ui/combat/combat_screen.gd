@@ -2,38 +2,33 @@ extends Control
 ## Combat screen. Owns no rules: every number shown comes from Combat.preview()
 ## or Combat.resolve_turn().
 ##
-## Layout follows docs/art_direction.md §4.1 — items standing on an oblique desk:
-##   top:    receiver (observation ports with the enemy, enemy signal screen)
-##   middle: counter box | main oscilloscope | line-integrity box
-##   bottom: transmitter (power lamps, your signal screen, fire key)
-##   beyond the desk's front edge: the hand of punch cards held as a small
-##   overlapping fan (click opens the whole hand, raised and spread over the
-##   desk), the draw pile on the left and the discard pile on the right.
-## All three wave screens share the same cell columns; spacing uses the
-## InstrumentStyle size tokens.
-##
+## Layout follows docs/art_direction.md §4.1 — instruments on an oblique desk.
+## Each instrument is a DeskDevice: its face is laid out flat and shown in
+## perspective (input and effects are mapped through the same homography).
+##   scope unit (upright, top wider): receiver row (enemy ports + amber
+##     screen) above the main oscilloscope; "预计" counters in its left column
+##   transmitter (lying on the desk, far edge narrower): power bulbs, your
+##     cyan screen, fire key; line-integrity meter (upright) to its left,
+##     duty note to its right
+##   beyond the desk edge: hand held as a fan, draw pile left, discard right
 ## Controls: drag a card onto the scopes; right-click / R flips flippable cards;
 ## drag a placed wave off the scopes to take it back; Enter/Space resolves.
 
 const LAUNCH_SECONDS := 0.45
 const IMPACT_SECONDS := 0.6
 const SHOT_SECONDS := 0.5
-## Width of the side boxes beside the main scope (counter / integrity).
-const SIDE_W := 256.0
-## Desk visible around the instruments (sides / top).
-const MARGIN := 72.0
-const MARGIN_TOP := 56.0
-## Oblique view: the far (top) instrument's case is inset on both sides so the
-## rows read as standing at different depths on the desk. Screens keep their
-## shared columns; only the cases narrow.
-const DEPTH_INSET := 40.0
+## Flat face sizes of the devices (their own coordinate spaces).
+const SCOPE_FLAT := Vector2(2000, 900)
+const TX_FLAT := Vector2(1400, 400)
+const GAUGE_FLAT := Vector2(380, 440)
+## Scope unit face: left column (ports / counters) and right knob strip.
+const SCOPE_LEFT := 400.0
+const SCOPE_RIGHT := 110.0
+const SCOPE_RX_H := 250.0
 ## Held hand: small overlapping fan below the desk edge. Open hand: raised,
 ## full size and spread out over the desk.
 const HAND_SCALE := 0.62
 const OPEN_SCALE := 1.05
-## Grid inset inside the main scope (name plate on the left, knobs on the right).
-const GRID_INSET_L := 150.0
-const GRID_INSET_R := 110.0
 
 var app: Node
 var combat: Combat
@@ -44,10 +39,18 @@ var demo := false
 var run: RunState
 var tutorial_enabled := true
 
+var _scope_dev: DeskDevice
+var _tx_dev: DeskDevice
+var _gauge_dev: DeskDevice
+## Device faces (flat coordinates inside each device).
 var _receiver: InstrumentCase
 var _transmitter: InstrumentCase
-var _counter_box: InstrumentCase
 var _integrity: InstrumentCase
+## Fire key artwork on the transmitter face (the clickable area is
+## _resolve_btn, an invisible button over its on-screen footprint).
+var _fire_art: Button
+var _note: DeskNote
+var _prev_energy := -1
 var _enemy_screen: ScopeScreen
 var _player_screen: ScopeScreen
 ## Phosphor tubes holding the two screens (amber receiver, cyan transmitter).
@@ -101,66 +104,85 @@ var _animating := false
 
 
 func _ready() -> void:
+	_scope_dev = _make_device(SCOPE_FLAT)
 	_receiver = InstrumentCase.new()
-	add_child(_receiver)
-	_transmitter = InstrumentCase.new()
-	add_child(_transmitter)
-	_counter_box = InstrumentCase.new()
-	add_child(_counter_box)
-	_integrity = InstrumentCase.new()
-	add_child(_integrity)
+	_receiver.desk_shadow = false
+	_receiver.texture_id = "item_main_scope"
+	_receiver.size = SCOPE_FLAT
+	_scope_dev.content.add_child(_receiver)
 	_enemy_screen = _make_screen(1.0, Color("ffb02e"), Color("170c02"))
-	_enemy_tube = _make_tube(_enemy_screen, Color(0.05, 0.03, 0.01))
-	_player_screen = _make_screen(-1.0, Color("4fd8ff"), Color("021318"))
-	_player_tube = _make_tube(_player_screen, Color(0.01, 0.04, 0.05))
-
+	_enemy_tube = _make_tube(_enemy_screen, Color(0.05, 0.03, 0.01), _scope_dev.content)
 	_merged = MergedView.new()
 	_merged.track_length = combat.rules.track_length
 	_merged.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_merged)
+	_merged.embedded = true
+	_scope_dev.content.add_child(_merged)
 
 	for e in combat.enemies:
 		var fig := FigureView.new()
 		fig.shape = e.data.figure_shape
 		fig.color = Assets.color(e.data.color_id)
 		fig.texture = Assets.texture(e.data.texture_id) if e.data.texture_id != "" else null
-		add_child(fig)
+		_scope_dev.content.add_child(fig)
 		var panel := EnemyPanel.new()
-		add_child(panel)
+		_scope_dev.content.add_child(panel)
 		_enemy_views[e] = {"figure": fig, "panel": panel}
-
-	_player_hp = NeedleMeter.new()
-	_player_hp.color = Assets.color("player_wave")
-	add_child(_player_hp)
 
 	_to_enemy_label = FlipCounter.new()
 	_to_enemy_label.color = Assets.color("damage_to_enemy")
-	add_child(_to_enemy_label)
+	_scope_dev.content.add_child(_to_enemy_label)
 	_to_player_label = FlipCounter.new()
 	_to_player_label.color = Assets.color("damage_to_player")
-	add_child(_to_player_label)
-	_turn_label = _make_label(20, Assets.color("case_print"))
+	_scope_dev.content.add_child(_to_player_label)
 	for up in [true, false]:
 		var arrow := ArrowIcon.new()
 		arrow.up = up
 		arrow.color = Assets.color("damage_to_enemy") if up else Assets.color("damage_to_player")
-		arrow.tooltip_text = "预计对杂波造成的伤害" if up else "预计你受到的伤害"
-		arrow.size = Vector2(48, 52)
-		add_child(arrow)
+		arrow.size = Vector2(56, 60)
+		_scope_dev.content.add_child(arrow)
 		_arrows.append(arrow)
 
+	_tx_dev = _make_device(TX_FLAT)
+	_transmitter = InstrumentCase.new()
+	_transmitter.desk_shadow = false
+	_transmitter.texture_id = "item_transmitter"
+	_transmitter.size = TX_FLAT
+	_tx_dev.content.add_child(_transmitter)
+	_player_screen = _make_screen(-1.0, Color("4fd8ff"), Color("021318"))
+	_player_tube = _make_tube(_player_screen, Color(0.01, 0.04, 0.05), _tx_dev.content)
 	_energy = EnergyView.new()
-	add_child(_energy)
+	_tx_dev.content.add_child(_energy)
+	_fire_art = Button.new()
+	_fire_art.text = "发射"
+	_fire_art.add_theme_font_size_override("font_size", Assets.fs(34))
+	ThemeFactory.style_fire_key(_fire_art)
+	_tx_dev.content.add_child(_fire_art)
+
+	_gauge_dev = _make_device(GAUGE_FLAT)
+	_integrity = InstrumentCase.new()
+	_integrity.desk_shadow = false
+	_integrity.texture_id = "item_integrity"
+	_integrity.size = GAUGE_FLAT
+	_gauge_dev.content.add_child(_integrity)
+	_player_hp = NeedleMeter.new()
+	_player_hp.color = Assets.color("player_wave")
+	_gauge_dev.content.add_child(_player_hp)
+
+	_note = DeskNote.new()
+	add_child(_note)
+	_turn_label = _make_label(20, Assets.color("case_print"))
+	_turn_label.visible = false
+
 	_draw_pile = PileIcon.new()
 	add_child(_draw_pile)
 	_discard_pile = PileIcon.new()
 	_discard_pile.discard = true
 	add_child(_discard_pile)
 
+	# Invisible click area over the fire key's on-screen footprint.
 	_resolve_btn = Button.new()
-	_resolve_btn.text = "发射"
-	_resolve_btn.add_theme_font_size_override("font_size", Assets.fs(30))
-	ThemeFactory.style_fire_key(_resolve_btn)
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		_resolve_btn.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 	_resolve_btn.pressed.connect(_resolve)
 	add_child(_resolve_btn)
 
@@ -200,11 +222,18 @@ func _make_screen(dir: float, phosphor: Color, bg: Color) -> ScopeScreen:
 	return sc
 
 
-func _make_tube(screen: ScopeScreen, glass: Color) -> TubeScreen:
+func _make_tube(screen: ScopeScreen, glass: Color, parent: Control) -> TubeScreen:
 	var tube := TubeScreen.new(screen)
 	tube.glass_tint = glass
-	add_child(tube)
+	parent.add_child(tube)
 	return tube
+
+
+func _make_device(flat: Vector2) -> DeskDevice:
+	var d := DeskDevice.new()
+	d.flat_size = flat
+	add_child(d)
+	return d
 
 
 func _make_label(font_size: int, color: Color) -> Label:
@@ -221,104 +250,123 @@ func _make_label(font_size: int, color: Color) -> Label:
 func _layout() -> void:
 	var w := size.x
 	var h := size.y
-	var G := InstrumentStyle.GAP
-	var IN := InstrumentStyle.WINDOW_INSET
 	_edge_y = h - float(Assets.DESK["edge_from_bottom"])
-	var avail := _edge_y - MARGIN_TOP - G
-	var row_h := maxf(160.0, avail * 0.21)
-	var mid_h := avail - row_h * 2 - G * 2
-	var e0 := MARGIN_TOP
-	var m0 := e0 + row_h + G
-	var p0 := m0 + mid_h + G
-	var x0 := MARGIN
-	var x1 := w - MARGIN
+	_layout_faces()
 
-	# Main oscilloscope between the two side boxes; its grid defines the columns.
-	var main_x := x0 + SIDE_W + G
-	var main_w := x1 - SIDE_W - G - main_x
-	_merged.position = Vector2(main_x, m0)
-	_merged.size = Vector2(main_w, mid_h)
-	_merged.grid_x0 = GRID_INSET_L
-	_merged.grid_x1 = main_w - GRID_INSET_R
-	_merged.layout_parts()
-	var gx0 := main_x + GRID_INSET_L
-	var gx1 := main_x + main_w - GRID_INSET_R
-	var sx0 := gx0 - OscilloscopeView.TUBE_MARGIN
-	var sx1 := gx1 + OscilloscopeView.TUBE_MARGIN
+	# Scope unit: upright at the back, top slightly wider than the bottom.
+	var y0 := 26.0
+	var y1 := _edge_y - 300.0
+	var hs := y1 - y0
+	# Leave desk visible on both sides (menu key sits in the top-right corner).
+	var tw := minf(w - 480.0, hs * (SCOPE_FLAT.x / SCOPE_FLAT.y) * 1.03)
+	var bw := tw * 0.95
+	var cx := w * 0.5
+	_scope_dev.set_quad(PackedVector2Array([Vector2(cx - tw * 0.5, y0), Vector2(cx + tw * 0.5, y0),
+		Vector2(cx + bw * 0.5, y1), Vector2(cx - bw * 0.5, y1)]))
 
-	# Receiver (top) and transmitter (bottom) share the outer edges x0..x1;
-	# their screens line up with the main tube.
-	for row in [[_receiver, _enemy_tube, e0, DEPTH_INSET], [_transmitter, _player_tube, p0, 0.0]]:
-		var case: InstrumentCase = row[0]
-		var tube: TubeScreen = row[1]
-		var inset: float = row[3]
-		case.position = Vector2(x0 + inset, row[2])
-		case.size = Vector2(x1 - x0 - inset * 2, row_h)
-		var win := Rect2(sx0 - case.position.x, IN, sx1 - sx0, row_h - IN * 2)
-		case.windows = [win]
-		tube.position = case.position + win.position
-		tube.size = win.size
-		var screen: ScopeScreen = tube.content
-		screen.grid_x0 = gx0 - tube.position.x
-		screen.grid_w = gx1 - gx0
-	var right_x := sx1 + G + 6.0
-	var right_w := x1 - IN - right_x
-	var rx_right_w := right_w - DEPTH_INSET
+	# Transmitter lying on the desk in front: far edge narrower, foreshortened.
+	var t0 := y1 + 40.0
+	var t1 := _edge_y - 14.0
+	var nb := minf(w * 0.6, 1220.0)
+	var nt := nb * 0.86
+	_tx_dev.set_quad(PackedVector2Array([Vector2(cx - nt * 0.5, t0), Vector2(cx + nt * 0.5, t0),
+		Vector2(cx + nb * 0.5, t1), Vector2(cx - nb * 0.5, t1)]))
 
-	# Receiver: observation ports on the left, status print + menu on the right.
-	var rx0 := x0 + DEPTH_INSET
-	_enemy_area = Rect2(rx0 + IN, e0 + IN * 0.5, sx0 - rx0 - IN - G - 6.0, row_h - IN)
-	_receiver.labels = [{"pos": Vector2(right_x - rx0, InstrumentStyle.TITLE_BASELINE), "text": "接收机", "size": 20, "width": rx_right_w, "align": HORIZONTAL_ALIGNMENT_CENTER}]
-	_turn_label.position = Vector2(right_x, e0 + InstrumentStyle.TITLE_BASELINE + 8)
-	_turn_label.size = Vector2(rx_right_w, 60)
-	_turn_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_menu_btn.position = Vector2(right_x, e0 + row_h - IN - 44)
-	_menu_btn.size = Vector2(rx_right_w, 44)
-	_layout_enemies(false)
+	# Line-integrity meter standing to the left of the transmitter.
+	var gx1 := cx - nb * 0.5 - 36.0
+	var gy1 := _edge_y - 10.0
+	# Fits between the scope unit's foot and the desk edge.
+	var gh := minf(gy1 - (y1 + 24.0), (gx1 - 48.0) * GAUGE_FLAT.y / GAUGE_FLAT.x)
+	var gw := gh * GAUGE_FLAT.x / GAUGE_FLAT.y
+	var gy0 := gy1 - gh
+	_gauge_dev.set_quad(PackedVector2Array([Vector2(gx1 - gw, gy0), Vector2(gx1, gy0),
+		Vector2(gx1 - gw * 0.02, gy1), Vector2(gx1 - gw * 0.98, gy1)]))
 
-	# Transmitter: power lamps on the left, fire key on the right.
-	var left_w := sx0 - x0 - IN - G - 6.0
-	_transmitter.labels = [{"pos": Vector2(IN, InstrumentStyle.TITLE_BASELINE), "text": "发射功率", "size": 20, "width": left_w, "align": HORIZONTAL_ALIGNMENT_CENTER}]
-	_energy.position = Vector2(x0 + IN, p0 + InstrumentStyle.TITLE_BASELINE + 12)
-	_energy.size = Vector2(left_w, row_h - InstrumentStyle.TITLE_BASELINE - 12 - IN)
-	# Fire key with its ready lamp above it.
-	_transmitter.lamps = [{"center": Vector2(right_x - x0 + right_w * 0.5, IN + 8), "on": false, "color": Color("ff4d3a")}]
-	_resolve_btn.position = Vector2(right_x, p0 + IN + 26)
-	_resolve_btn.size = Vector2(right_w, row_h - IN * 2 - 26)
+	# Duty note to the right of the transmitter; menu key in the far corner.
+	var nx := cx + nb * 0.5 + 40.0
+	_note.position = Vector2(nx, t0 - 10.0)
+	_note.size = Vector2(minf(w - nx - 48.0, 280.0), 200.0)
+	_note.pivot_offset = _note.size * 0.5
+	_note.rotation = 0.05
+	_menu_btn.position = Vector2(w - 170.0, 26.0)
+	_menu_btn.size = Vector2(130.0, 48.0)
 
-	# Counter box (left) and line-integrity box (right), aligned to x0 / x1.
-	var box_win := Rect2(IN, InstrumentStyle.TITLE_BASELINE + 16, SIDE_W - IN * 2, mid_h - InstrumentStyle.TITLE_BASELINE - 16 - IN)
-	for box in [[_counter_box, x0, "预计"], [_integrity, x1 - SIDE_W, "线路完整度"]]:
-		var c: InstrumentCase = box[0]
-		c.position = Vector2(box[1], m0)
-		c.size = Vector2(SIDE_W, mid_h)
-		c.windows = [box_win]
-		c.labels = [{"pos": Vector2(0, InstrumentStyle.TITLE_BASELINE), "text": box[2], "size": 20, "width": SIDE_W, "align": HORIZONTAL_ALIGNMENT_CENTER}]
-	var row1 := m0 + box_win.position.y + box_win.size.y * 0.3
-	var row2 := m0 + box_win.position.y + box_win.size.y * 0.72
-	_arrows[0].position = Vector2(x0 + IN + 16, row1 - 26)
-	_arrows[1].position = Vector2(x0 + IN + 16, row2 - 26)
-	var ctr_h := minf(box_win.size.y * 0.26, 84.0)
-	for pair in [[_to_enemy_label, row1], [_to_player_label, row2]]:
-		var fc: FlipCounter = pair[0]
-		fc.position = Vector2(x0 + IN + 72, pair[1] - ctr_h * 0.5)
-		fc.size = Vector2(box_win.size.x - 72 - 10, ctr_h)
-	_player_hp.position = _integrity.position + box_win.position + Vector2(10, 10)
-	_player_hp.size = Vector2(box_win.size.x - 20, box_win.size.y - 20)
-	for b in [_counter_box, _integrity, _receiver, _transmitter]:
-		b.queue_redraw()
+	# Fire key click area = the key's footprint on screen.
+	_resolve_btn.position = _tx_dev.flat_rect_to_screen(_fire_art.get_rect()).position
+	_resolve_btn.size = _tx_dev.flat_rect_to_screen(_fire_art.get_rect()).size
 
 	# Beyond the desk edge: draw pile (left), hand (centre), discard (right).
 	var pile_h := minf(140.0, h - _edge_y + 30.0)
-	_draw_pile.position = Vector2(x0 + 8, h - pile_h - 12)
+	_draw_pile.position = Vector2(48.0, h - pile_h - 12)
 	_draw_pile.size = Vector2(120, pile_h)
-	_discard_pile.position = Vector2(x1 - 128, h - pile_h - 12)
+	_discard_pile.position = Vector2(w - 168.0, h - pile_h - 12)
 	_discard_pile.size = Vector2(120, pile_h)
 	_hand_root.position = Vector2.ZERO
 	_hand_root.size = size
-	_toast.position = Vector2(main_x, m0 + 60)
-	_toast.size = Vector2(main_w, 60)
+	_toast.position = Vector2(cx - 500.0, y0 + hs * 0.45)
+	_toast.size = Vector2(1000.0, 60.0)
 	_layout_hand()
+
+
+## Flat layouts of the device faces (independent of the window size).
+func _layout_faces() -> void:
+	var IN := InstrumentStyle.WINDOW_INSET
+	var TB := InstrumentStyle.TITLE_BASELINE
+	# --- Scope unit: receiver row above, main scope below.
+	var main_rect := Rect2(IN, SCOPE_RX_H + IN, SCOPE_FLAT.x - IN * 2, SCOPE_FLAT.y - SCOPE_RX_H - IN * 2)
+	_merged.position = main_rect.position
+	_merged.size = main_rect.size
+	_merged.grid_x0 = SCOPE_LEFT
+	_merged.grid_x1 = main_rect.size.x - SCOPE_RIGHT
+	_merged.layout_parts()
+	var gx0 := main_rect.position.x + SCOPE_LEFT
+	var gx1 := main_rect.position.x + main_rect.size.x - SCOPE_RIGHT
+	var win := Rect2(gx0 - OscilloscopeView.TUBE_MARGIN, IN, gx1 - gx0 + OscilloscopeView.TUBE_MARGIN * 2, SCOPE_RX_H - IN)
+	_receiver.windows = [win]
+	_enemy_tube.position = win.position
+	_enemy_tube.size = win.size
+	_enemy_screen.grid_x0 = gx0 - win.position.x
+	_enemy_screen.grid_w = gx1 - gx0
+	_enemy_area = Rect2(IN, IN * 0.5, win.position.x - IN * 2 - 6.0, SCOPE_RX_H - IN)
+	# "预计" counters in the left column under the ports.
+	var cwin := Rect2(IN * 2, main_rect.position.y + TB + 20, SCOPE_LEFT - IN * 3, main_rect.size.y - TB - 20 - 110)
+	_receiver.labels = [{"pos": Vector2(cwin.position.x, main_rect.position.y + TB), "text": "预计", "size": 20, "width": cwin.size.x, "align": HORIZONTAL_ALIGNMENT_CENTER}]
+	_receiver.windows.append(cwin)
+	var row1 := cwin.position.y + cwin.size.y * 0.28
+	var row2 := cwin.position.y + cwin.size.y * 0.72
+	var ctr_h := minf(cwin.size.y * 0.3, 110.0)
+	for pair in [[_to_enemy_label, _arrows[0], row1], [_to_player_label, _arrows[1], row2]]:
+		var fc: FlipCounter = pair[0]
+		var ar: ArrowIcon = pair[1]
+		ar.position = Vector2(cwin.position.x + 16, pair[2] - ar.size.y * 0.5)
+		fc.position = Vector2(cwin.position.x + 90, pair[2] - ctr_h * 0.5)
+		fc.size = Vector2(cwin.size.x - 106, ctr_h)
+	_layout_enemies(false)
+
+	# --- Transmitter: bulbs | screen | fire key.
+	var bulbs := Rect2(IN, TB + 10, 120, TX_FLAT.y - TB - 10 - IN)
+	var twin := Rect2(bulbs.end.x + IN, IN, TX_FLAT.x - 2 * IN - 120 - IN - 190 - IN, TX_FLAT.y - IN * 2)
+	_transmitter.windows = [twin]
+	_transmitter.labels = [{"pos": Vector2(bulbs.position.x, TB), "text": "功率", "size": 20, "width": bulbs.size.x, "align": HORIZONTAL_ALIGNMENT_CENTER}]
+	_energy.position = bulbs.position
+	_energy.size = bulbs.size
+	_player_tube.position = twin.position
+	_player_tube.size = twin.size
+	_player_screen.grid_x0 = 28.0
+	_player_screen.grid_w = twin.size.x - 56.0
+	var key := Rect2(twin.end.x + IN, IN + 64, TX_FLAT.x - twin.end.x - IN * 2, TX_FLAT.y - IN * 2 - 64)
+	_fire_art.position = key.position
+	_fire_art.size = key.size
+	_transmitter.lamps = [{"center": Vector2(key.get_center().x, IN + 30), "on": false, "color": Color("ff4d3a")}]
+
+	# --- Integrity meter.
+	var iwin := Rect2(IN, TB + 16, GAUGE_FLAT.x - IN * 2, GAUGE_FLAT.y - TB - 16 - IN)
+	_integrity.windows = [iwin]
+	_integrity.labels = [{"pos": Vector2(0, TB), "text": "线路完整度", "size": 20, "width": GAUGE_FLAT.x, "align": HORIZONTAL_ALIGNMENT_CENTER}]
+	_player_hp.position = iwin.position + Vector2(10, 10)
+	_player_hp.size = iwin.size - Vector2(20, 20)
+	for c in [_receiver, _transmitter, _integrity]:
+		c.queue_redraw()
 
 
 ## Enemy observation ports in the receiver, left of its screen. The twins get
@@ -395,18 +443,18 @@ func _set_hand_open(open: bool) -> void:
 ## Rect (screen-local) of a named UI element, for tutorial highlighting.
 func anchor_rect(anchor: String) -> Rect2:
 	match anchor:
-		"enemy_scope": return _receiver.get_rect()
-		"counter": return _counter_box.get_rect()
-		"player_scope": return _transmitter.get_rect()
-		"collision": return _merged.get_rect()
+		"enemy_scope": return _scope_dev.flat_rect_to_screen(Rect2(0, 0, SCOPE_FLAT.x, SCOPE_RX_H + 10))
+		"counter": return _scope_dev.flat_rect_to_screen(_receiver.windows[1])
+		"player_scope": return _tx_dev.get_rect()
+		"collision": return _scope_dev.flat_rect_to_screen(_merged.get_rect())
 		"resolve": return _resolve_btn.get_rect()
-		"player_figure": return _integrity.get_rect()
-		"energy": return _energy.get_rect()
+		"player_figure": return _gauge_dev.get_rect()
+		"energy": return _tx_dev.flat_rect_to_screen(_energy.get_rect())
 		"enemy_figure":
 			var front := combat.front_enemy()
 			if front != null:
 				var v: Dictionary = _enemy_views[front]
-				return v["figure"].get_rect().merge(v["panel"].get_rect())
+				return _scope_dev.flat_rect_to_screen(v["figure"].get_rect().merge(v["panel"].get_rect()))
 		"hand":
 			if not _card_views.is_empty():
 				var r: Rect2 = _card_views[0].get_global_rect()
@@ -414,6 +462,24 @@ func anchor_rect(anchor: String) -> Rect2:
 					r = r.merge(c.get_global_rect())
 				return Rect2(r.position - global_position, r.size)
 	return Rect2()
+
+
+## Screen point over the transmitter screen at the centre of cell `t`.
+func cell_screen_point(t: float) -> Vector2:
+	var cw := _player_screen.grid_w / combat.rules.track_length
+	var f := _player_tube.position + Vector2(_player_screen.grid_x0 + (t + 0.5) * cw, _player_tube.size.y * 0.5)
+	return _tx_dev.flat_to_screen(f)
+
+
+## Screen point of a cell's damage readout on the main scope.
+func _readout_screen_point(t: int, to_enemy: bool) -> Vector2:
+	var local := _merged.cell_global(t, to_enemy) - _merged.global_position
+	return _scope_dev.flat_to_screen(_merged.position + local)
+
+
+func _figure_screen_center(e: EnemyState) -> Vector2:
+	var fig: FigureView = _enemy_views[e]["figure"]
+	return _scope_dev.flat_to_screen(fig.position + fig.size * 0.5)
 
 
 # --- Refresh ---------------------------------------------------------------
@@ -478,8 +544,7 @@ func _animate_discards(played: Array[PlayedCard]) -> void:
 		var v := CardView.new(p.card)
 		v.ghost = true
 		add_child(v)
-		var x := _merged.global_position.x + _merged.cell_center_x(p.offset + p.card.data.wave.size() * 0.5)
-		v.global_position = Vector2(x, _merged.global_position.y + _merged.size.y * 0.4) - CardView.CARD_SIZE * 0.5
+		v.global_position = cell_screen_point(p.offset + p.card.data.wave.size() * 0.5 - 0.5) - CardView.CARD_SIZE * 0.5
 		v.scale = Vector2(0.5, 0.5)
 		flying.append(v)
 	var delay := 0.0
@@ -565,9 +630,18 @@ func _refresh_preview() -> void:
 		_turn_label.text += "\n%d 回合后交换" % combat.swap_in()
 	_energy.energy = combat.energy
 	_energy.max_energy = combat.rules.energy_per_turn
+	# Power just filled up: the transmitter trembles.
+	if _prev_energy > 0 and combat.energy == 0 and not _animating:
+		_tx_dev.shake(0.8)
+	_prev_energy = combat.energy
+	var turn_lines := PackedStringArray(["第 %d 回合" % combat.turn])
+	if combat.swap_in() > 0:
+		turn_lines.append("%d 回合后交换" % combat.swap_in())
+	_note.set_lines(turn_lines)
 	_draw_pile.count = combat.deck.draw_pile.size()
 	_discard_pile.count = combat.deck.discard_pile.size()
 	_resolve_btn.disabled = _animating or combat.outcome != Combat.Outcome.ONGOING
+	_fire_art.disabled = _resolve_btn.disabled
 	if not _transmitter.lamps.is_empty():
 		_transmitter.lamps[0]["on"] = not _resolve_btn.disabled
 		_transmitter.queue_redraw()
@@ -669,14 +743,24 @@ func _start_drag(card: CardInstance, grab: int, flipped: bool) -> void:
 	refresh()
 
 
-## Both bench scopes and the merged panel together form the drop area.
+## Drop area: the transmitter screen or the scope unit's screens.
 func _over_scopes(mouse: Vector2) -> bool:
-	var r := _enemy_tube.get_global_rect().merge(_player_tube.get_global_rect())
-	return r.grow(10).has_point(mouse)
+	if _tx_dev.contains_screen(mouse):
+		return _player_tube.get_rect().grow(10).has_point(_tx_dev.screen_to_flat(mouse))
+	if _scope_dev.contains_screen(mouse):
+		var f := _scope_dev.screen_to_flat(mouse)
+		return _merged.get_rect().has_point(f) or _enemy_tube.get_rect().has_point(f)
+	return false
 
 
+## Cell under the mouse, read through whichever device it is over.
 func _cell_at(mouse: Vector2) -> int:
-	return _merged.cell_at(mouse - _merged.global_position)
+	if _tx_dev.contains_screen(mouse):
+		var f := _tx_dev.screen_to_flat(mouse) - _player_tube.position
+		var cw := _player_screen.grid_w / combat.rules.track_length
+		return floori((f.x - _player_screen.grid_x0) / cw)
+	var g := _scope_dev.screen_to_flat(mouse)
+	return _merged.cell_at(g - _merged.position)
 
 
 func _update_drag(mouse: Vector2) -> void:
@@ -739,6 +823,9 @@ func _input(event: InputEvent) -> void:
 			_press_card = null
 			if combat.can_play(card) and not _animating:
 				_start_drag(card, card.data.wave.size() / 2, false)
+			elif not _animating:
+				# No power left for this card: the transmitter refuses it.
+				_tx_dev.shake(0.8)
 		if _drag_card != null:
 			_update_drag(event.position)
 		elif not _animating:
@@ -803,6 +890,7 @@ func _resolve() -> void:
 	_animating = true
 	_hover_cell = -1
 	_resolve_btn.disabled = true
+	_fire_art.disabled = true
 	for v in _card_views:
 		v.playable = false
 		v.queue_redraw()
@@ -822,7 +910,7 @@ func _resolve() -> void:
 	# 2. Impact: soft rings where waves cancel, a smooth screen ripple, and
 	#    the result bars / numbers pop in left to right.
 	_merged.impact = 1.0
-	app.impact(_merged.global_position + _merged.size * 0.5, 0.35 + 0.04 * r.perfect_cancels)
+	app.impact(_scope_dev.flat_to_screen(_merged.position + _merged.size * 0.5), 0.35 + 0.04 * r.perfect_cancels)
 	var tw2 := create_tween().set_parallel(true)
 	tw2.tween_property(_merged, "impact", 0.0, IMPACT_SECONDS)
 	tw2.tween_property(_merged, "reveal", 1.0, IMPACT_SECONDS)
@@ -837,8 +925,8 @@ func _resolve() -> void:
 		if dmg <= 0:
 			continue
 		var to_enemy := r.outcome[t] != TrackResult.Outcome.PLAYER_HIT
-		var from := _merged.cell_global(t, to_enemy)
-		var to := target_fig.center_global() if to_enemy else _integrity.get_global_rect().get_center()
+		var from := _readout_screen_point(t, to_enemy)
+		var to := _figure_screen_center(report.target) if to_enemy else _gauge_dev.get_global_rect().get_center()
 		var col := Assets.color("damage_to_enemy") if to_enemy else Assets.color("damage_to_player")
 		_fx.shoot(from, to, col, delay, SHOT_SECONDS, 5.0 + dmg * 0.8)
 		delay += 0.03
@@ -846,11 +934,11 @@ func _resolve() -> void:
 
 	if r.to_enemy > 0:
 		target_fig.hit(r.to_enemy)
-		_fx.float_text(target_fig.center_global(), "-%d" % r.to_enemy, Assets.color("damage_to_enemy"))
+		_fx.float_text(_figure_screen_center(report.target), "-%d" % r.to_enemy, Assets.color("damage_to_enemy"))
 	if r.to_player > 0:
 		_integrity.flash()
-		_fx.float_text(_integrity.get_global_rect().get_center(), "-%d" % r.to_player, Assets.color("damage_to_player"))
-		app.impact(_integrity.get_global_rect().get_center(), clampf(0.2 + r.to_player * 0.03, 0.2, 0.6))
+		_fx.float_text(_gauge_dev.get_global_rect().get_center(), "-%d" % r.to_player, Assets.color("damage_to_player"))
+		app.impact(_gauge_dev.get_global_rect().get_center(), clampf(0.2 + r.to_player * 0.03, 0.2, 0.6))
 	_player_hp.set_values(combat.player_hp, combat.player_max_hp, 0)
 	_update_enemy_panels(0)
 	await get_tree().create_timer(0.45).timeout

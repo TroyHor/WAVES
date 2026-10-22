@@ -28,8 +28,9 @@ static func draw_desk_shadow(ci: CanvasItem, r: Rect2) -> void:
 
 ## Cream plastic shell with drop shadow, soft lower shading and a light lip.
 ## If `texture` is given (final art), it is drawn instead of the placeholder.
-static func draw_case(ci: CanvasItem, r: Rect2, radius := CASE_RADIUS, flash := 0.0, texture: Texture2D = null) -> void:
-	draw_desk_shadow(ci, r)
+static func draw_case(ci: CanvasItem, r: Rect2, radius := CASE_RADIUS, flash := 0.0, texture: Texture2D = null, desk_shadow := true) -> void:
+	if desk_shadow:
+		draw_desk_shadow(ci, r)
 	if texture != null:
 		ci.draw_texture_rect(texture, r, false, Color.WHITE.lerp(Color(1.4, 1.4, 1.4), flash))
 		return

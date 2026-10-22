@@ -31,6 +31,7 @@ func _ready() -> void:
 	_tex = TextureRect.new()
 	_tex.texture = _vp.get_texture()
 	_tex.stretch_mode = TextureRect.STRETCH_SCALE
+	_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_mat = ShaderMaterial.new()
 	_mat.shader = TUBE_SHADER

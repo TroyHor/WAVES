@@ -21,6 +21,12 @@ var merge := 0.0
 var impact := 0.0
 
 var scope := OscilloscopeView.new()
+## See OscilloscopeView.embedded.
+var embedded := false:
+	set(v):
+		embedded = v
+		scope.embedded = v
+		scope.show_plate = not v
 var graph := MergedScreen.new()
 var readout := ReadoutStrip.new()
 

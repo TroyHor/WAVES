@@ -1,7 +1,7 @@
 {
 	"id": "full_cycle",
 	"name": "全周期",
-	"cost": 1,
+	"cost": 2,
 	"wave": [
 		2,
 		4,

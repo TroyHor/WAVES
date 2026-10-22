@@ -16,6 +16,10 @@ var title := ""
 var accent := Color.WHITE
 var screen: Control
 var flow_background := false
+## Embedded in a larger device face: skip the outer shell (hood, plate and
+## knobs are still drawn).
+var embedded := false
+var show_plate := true
 ## Case space reserved under the tube (e.g. for a readout strip).
 var bottom_pad := 0.0
 ## Grid x-range in this control's local coordinates (set by the layout).
@@ -51,6 +55,7 @@ func _ready() -> void:
 	_tube = TextureRect.new()
 	_tube.texture = _vp.get_texture()
 	_tube.stretch_mode = TextureRect.STRETCH_SCALE
+	_tube.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_tube.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var mat := ShaderMaterial.new()
 	mat.shader = TUBE_SHADER
@@ -91,12 +96,13 @@ func _draw() -> void:
 	var font := get_theme_default_font()
 	var full := Rect2(Vector2.ZERO, size)
 	var tr := tube_rect()
-	_draw_case(full)
+	if not embedded:
+		_draw_case(full)
 	_draw_hood(tr)
 	# Name plate on the left: black label with light print, like the badge
 	# on vintage bench scopes.
 	var plate := Rect2(16, tr.get_center().y - 40, tr.position.x - 40, 80)
-	if plate.size.x > 40:
+	if show_plate and plate.size.x > 40:
 		InstrumentStyle.draw_plate(self, plate)
 		draw_string(font, Vector2(plate.position.x, plate.position.y + 34), title, HORIZONTAL_ALIGNMENT_CENTER, plate.size.x, Assets.fs(20), Assets.color("plate"))
 		draw_string(font, Vector2(plate.position.x, plate.position.y + 62), "OSC-16", HORIZONTAL_ALIGNMENT_CENTER, plate.size.x, Assets.fs(12), Color(Assets.color("plate"), 0.6))
