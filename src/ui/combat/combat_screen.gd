@@ -381,9 +381,7 @@ func _layout() -> void:
 	# above the transmitter so the fire key and its lamp remain clear.
 	var hood_r := _scope_dev.flat_to_screen(Vector2(_merged.position.x + _merged.grid_x1 + OscilloscopeView.TUBE_MARGIN + 16.0, ym)).x
 	var nx := hood_r + 4.0
-	_note.size = Vector2(clampf(w - nx - 6.0, 150.0, 240.0), 170.0)
-	_note.position = Vector2(nx, t0 - 12.0 - _note.size.y)
-	_note.pivot_offset = _note.size * 0.5
+	_note.place(nx, t0 - 12.0, clampf(w - nx - 6.0, 150.0, 240.0))
 	_note.rotation = 0.05
 
 	# Fire key click area = the key's footprint on screen.
