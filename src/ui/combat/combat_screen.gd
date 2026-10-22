@@ -11,7 +11,7 @@ extends Control
 ## Controls: drag a card onto the scopes; right-click / R flips flippable cards;
 ## drag a placed wave off the scopes to take it back; Enter/Space resolves.
 
-const BACKGROUND_SHADER := preload("res://src/ui/crt/pcb_background.gdshader")
+const BACKGROUND_SHADER := preload("res://src/ui/crt/bench_background.gdshader")
 const LAUNCH_SECONDS := 0.45
 const IMPACT_SECONDS := 0.6
 const SHOT_SECONDS := 0.5

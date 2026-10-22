@@ -155,8 +155,8 @@ func _bar(t: int, a: float, b: float, col: Color, pop: float, y_of: Callable) ->
 ## Etched graticule: fine lines per cell, major divisions, centre axes with
 ## minor ticks, like the engraved overlay on a real CRT.
 func _draw_graticule(g: Rect2, cw: float, cy: float, scale: float, font: Font) -> void:
-	var line := Color(Assets.color("graticule"), 0.16)
-	var major := Color(Assets.color("graticule"), 0.3)
+	var line := Color(Assets.color("graticule"), 0.24)
+	var major := Color(Assets.color("graticule"), 0.4)
 	for t in range(track_length + 1):
 		var x := g.position.x + t * cw
 		draw_line(Vector2(x, g.position.y), Vector2(x, g.end.y), major if t % 4 == 0 else line, 1.0)
