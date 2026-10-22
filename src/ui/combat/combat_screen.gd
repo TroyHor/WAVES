@@ -23,7 +23,12 @@ const SHOT_SECONDS := 0.5
 const SCOPE_FLAT := Vector2(2000, 900)
 ## Transmitter (L-shaped, side view): the upright face, and the horizontal
 ## foot with the card slots lying on the desk in front of it.
+## The face's width is set by the layout (_tx_w) so that its screen's columns
+## line up with the main scope's; only the height is fixed.
 const TX_FLAT := Vector2(1500, 205)
+const TX_BULBS_W := 124.0
+## Glass beside the grid inside the transmitter tube.
+const TX_TUBE_PAD := 28.0
 const FOOT_FLAT := Vector2(1500, 300)
 ## Share of the transmitter's on-screen height taken by the upright face.
 const TX_FACE_SHARE := 0.6
@@ -51,6 +56,8 @@ var tutorial_enabled := true
 var _scope_dev: DeskDevice
 var _tx_dev: DeskDevice
 var _foot_dev: DeskDevice
+## Current flat width of the transmitter face and foot.
+var _tx_w := TX_FLAT.x
 var _gauge_dev: DeskDevice
 ## Device faces (flat coordinates inside each device).
 var _receiver: InstrumentCase
@@ -99,6 +106,9 @@ var _resolve_btn: Button
 ## Pause panel (Esc): continue / back to the menu.
 var _pause: Control
 var _spark_t := 0.0
+## Fire wind-up: >0 while the transmitter builds up before launching
+## (tremble and sparks scale with it).
+var _charge := 0.0
 var _toast: Label
 var _overlay: Control
 var _hint: HintPanel
@@ -268,6 +278,9 @@ func _process(delta: float) -> void:
 	var full := combat.outcome == Combat.Outcome.ONGOING and not _animating \
 		and combat.energy <= 0 and not combat.played.is_empty()
 	_tx_dev.tremble = 1.0 if full else 0.0
+	if _charge > 0.0:
+		full = true
+		_tx_dev.tremble = 1.0 + _charge * 2.5
 	_foot_dev.tremble = _tx_dev.tremble
 	_slot_cards.position = _foot_dev.jitter()
 	if not full:
@@ -275,7 +288,7 @@ func _process(delta: float) -> void:
 	_spark_t -= delta
 	if _spark_t > 0.0:
 		return
-	_spark_t = randf_range(0.05, 0.12)
+	_spark_t = randf_range(0.05, 0.12) / (1.0 + _charge * 2.0)
 	# Small bursts from the bulb column and along the transmitter's far edge.
 	var bulbs := _tx_dev.flat_rect_to_screen(_energy.get_rect())
 	var p := Vector2(randf_range(bulbs.position.x, bulbs.end.x), randf_range(bulbs.position.y, bulbs.end.y))
@@ -318,15 +331,28 @@ func _layout() -> void:
 		Vector2(cx + bw * 0.5, y1), Vector2(cx - bw * 0.5, y1)]))
 
 	# Transmitter (L-shaped): the upright face stands in front of the scope
-	# unit; its foot lies on the desk towards the operator (near edge wider).
+	# unit; its foot lies on the desk towards the operator. Its screen's grid
+	# columns sit exactly under the main scope's (so the face's flat width
+	# follows the layout).
 	var t0 := y1 + 22.0
 	var t1 := _edge_y - 8.0
 	var tm := t0 + (t1 - t0) * TX_FACE_SHARE
-	var nb := minf(w * 0.66, (tm - t0) * TX_FLAT.x / TX_FLAT.y)
-	_tx_dev.set_quad(PackedVector2Array([Vector2(cx - nb * 0.5, t0), Vector2(cx + nb * 0.5, t0),
-		Vector2(cx + nb * 0.5, tm), Vector2(cx - nb * 0.5, tm)]))
-	var fb := nb * 1.05
-	_foot_dev.set_quad(PackedVector2Array([Vector2(cx - nb * 0.5, tm), Vector2(cx + nb * 0.5, tm),
+	var ym := _merged.position.y + _merged.size.y
+	var gx0_s := _scope_dev.flat_to_screen(Vector2(_merged.position.x + _merged.grid_x0, ym)).x
+	var gx1_s := _scope_dev.flat_to_screen(Vector2(_merged.position.x + _merged.grid_x1, ym)).x
+	var ts := (tm - t0) / TX_FLAT.y
+	_tx_w = _tx_left() + (gx1_s - gx0_s) / ts + _tx_right()
+	_tx_dev.set_flat_size(Vector2(_tx_w, TX_FLAT.y))
+	_foot_dev.set_flat_size(Vector2(_tx_w, FOOT_FLAT.y))
+	_layout_tx_face()
+	var nl := gx0_s - _tx_left() * ts
+	var nr := nl + _tx_w * ts
+	var nb := nr - nl
+	cx = (nl + nr) * 0.5
+	_tx_dev.set_quad(PackedVector2Array([Vector2(nl, t0), Vector2(nr, t0), Vector2(nr, tm), Vector2(nl, tm)]))
+	# The near edge only a little wider, so the slots stay under their columns.
+	var fb := nb * 1.02
+	_foot_dev.set_quad(PackedVector2Array([Vector2(nl, tm), Vector2(nr, tm),
 		Vector2(cx + fb * 0.5, t1 - FOOT_LIP), Vector2(cx - fb * 0.5, t1 - FOOT_LIP)]))
 	var bases := PackedVector2Array()
 	for t in combat.rules.track_length:
@@ -336,9 +362,10 @@ func _layout() -> void:
 	_slot_cards.cell_px = bases[1].x - bases[0].x
 
 	# Line-integrity meter standing at the left, in front of the scope's
-	# lower-left corner, turned a little counter-clockwise (not too tidy).
-	var gx1 := cx - fb * 0.5 - 30.0
-	var gw := minf(gx1 - 48.0, 300.0)
+	# lower-left corner, turned a little counter-clockwise (not too tidy); it
+	# may cover the transmitter's left frame edge, never its bulbs.
+	var gx1 := nl + 8.0
+	var gw := minf(gx1 - 28.0, 300.0)
 	var gh := gw * GAUGE_FLAT.y / GAUGE_FLAT.x
 	var gy1 := _edge_y - 10.0
 	var gy0 := gy1 - gh
@@ -349,10 +376,13 @@ func _layout() -> void:
 		gq[i] = gc + (gq[i] - gc).rotated(-0.09)
 	_gauge_dev.set_quad(gq)
 
-	# Duty note on the desk to the right of the transmitter.
-	var nx := cx + fb * 0.5 + 34.0
-	_note.size = Vector2(minf(w - nx - 48.0, 280.0), 200.0)
-	_note.position = Vector2(nx, t0 - 10.0)
+	# Duty note taped over the scope unit's right knob strip (frame and
+	# decorative knobs only), hanging past its edge onto the desk; it stays
+	# above the transmitter so the fire key and its lamp remain clear.
+	var hood_r := _scope_dev.flat_to_screen(Vector2(_merged.position.x + _merged.grid_x1 + OscilloscopeView.TUBE_MARGIN + 16.0, ym)).x
+	var nx := hood_r + 4.0
+	_note.size = Vector2(clampf(w - nx - 6.0, 150.0, 240.0), 170.0)
+	_note.position = Vector2(nx, t0 - 12.0 - _note.size.y)
 	_note.pivot_offset = _note.size * 0.5
 	_note.rotation = 0.05
 
@@ -410,28 +440,9 @@ func _layout_faces() -> void:
 		fc.size = Vector2(cwin.size.x - 106, ctr_h)
 	_layout_enemies(false)
 
-	# --- Transmitter face: bulbs | screen | fire key (the foot is _slot).
-	var face_h := TX_FLAT.y
-	var bulbs := Rect2(IN, IN, 124, face_h - IN * 2)
-	# Fire key on its metal plate, its ready lamp at the top right.
-	var key_d := (face_h - IN * 2) * 0.6
-	var key_w := key_d + 36.0
-	var twin := Rect2(bulbs.end.x + IN, IN, TX_FLAT.x - bulbs.end.x - IN * 3 - key_w, face_h - IN * 2)
-	_transmitter.windows = [twin]
-	_transmitter.labels = []
-	_energy.position = bulbs.position
-	_energy.size = bulbs.size
-	_player_tube.position = twin.position
-	_player_tube.size = twin.size
-	_player_screen.grid_x0 = 28.0
-	_player_screen.grid_w = twin.size.x - 56.0
-	var key := Rect2(twin.end.x + IN + (key_w - key_d) * 0.5 - 6.0, (face_h - key_d) * 0.5 + 8.0, key_d, key_d)
-	_fire_art.position = key.position
-	_fire_art.size = key.size
-	_transmitter.lamps = [{"center": Vector2(TX_FLAT.x - IN - 4.0, IN + 6.0), "on": false, "color": Color("ff4d3a")}]
-	_slot.grid_x0 = twin.position.x + _player_screen.grid_x0
-	_slot.grid_w = _player_screen.grid_w
+	_layout_tx_face()
 
+	# --- Integrity meter.
 	# --- Integrity meter.
 	var iwin := Rect2(IN + 6, IN + 6, GAUGE_FLAT.x - IN * 2 - 12, GAUGE_FLAT.y - IN * 2 - 12)
 	_integrity.windows = [iwin]
@@ -440,6 +451,51 @@ func _layout_faces() -> void:
 	_player_hp.size = iwin.size - Vector2(20, 20)
 	for c in [_receiver, _transmitter, _integrity]:
 		c.queue_redraw()
+
+
+## Flat width left of the transmitter's grid (frame, bulbs, glass).
+func _tx_left() -> float:
+	return InstrumentStyle.WINDOW_INSET * 2 + TX_BULBS_W + TX_TUBE_PAD
+
+
+func _tx_key_d() -> float:
+	return (TX_FLAT.y - InstrumentStyle.WINDOW_INSET * 2) * 0.6
+
+
+## Flat width right of the transmitter's grid (glass, fire key, frame).
+func _tx_right() -> float:
+	return TX_TUBE_PAD + InstrumentStyle.WINDOW_INSET * 2 + _tx_key_d() + 36.0
+
+
+## Transmitter face: bulbs | screen | fire key (the foot is _slot), laid out
+## in the current flat width _tx_w.
+func _layout_tx_face() -> void:
+	var IN := InstrumentStyle.WINDOW_INSET
+	var face_h := TX_FLAT.y
+	_transmitter.size = Vector2(_tx_w, face_h)
+	_slot.size = Vector2(_tx_w, FOOT_FLAT.y)
+	var bulbs := Rect2(IN, IN, TX_BULBS_W, face_h - IN * 2)
+	# Fire key on its metal plate, its ready lamp above it.
+	var key_d := _tx_key_d()
+	var key_w := key_d + 36.0
+	var twin := Rect2(bulbs.end.x + IN, IN, _tx_w - bulbs.end.x - IN * 3 - key_w, face_h - IN * 2)
+	_transmitter.windows = [twin]
+	_transmitter.labels = []
+	_energy.position = bulbs.position
+	_energy.size = bulbs.size
+	_player_tube.position = twin.position
+	_player_tube.size = twin.size
+	_player_screen.grid_x0 = TX_TUBE_PAD
+	_player_screen.grid_w = twin.size.x - TX_TUBE_PAD * 2
+	var key := Rect2(twin.end.x + IN + (key_w - key_d) * 0.5 - 6.0, (face_h - key_d) * 0.5 + 8.0, key_d, key_d)
+	_fire_art.position = key.position
+	_fire_art.size = key.size
+	_transmitter.lamps = [{"center": Vector2(key.get_center().x, (IN + key.position.y) * 0.5 - 2.0), "on": false, "color": Color("ff4d3a")}]
+	_slot.grid_x0 = twin.position.x + _player_screen.grid_x0
+	_slot.grid_w = _player_screen.grid_w
+
+	_transmitter.queue_redraw()
+	_slot.queue_redraw()
 
 
 ## Enemy observation ports in the receiver, left of its screen. The twins get
@@ -1003,6 +1059,8 @@ func _resolve() -> void:
 	if _hint != null:
 		return  # an unanswered hint must be dismissed first
 	_fire_art.press()
+	# Share of the turn's power that was loaded: drives how hard it hits.
+	var power := clampf(float(combat.rules.energy_per_turn - combat.energy) / maxf(1.0, combat.rules.energy_per_turn), 0.0, 1.0)
 	var shown_player_hp := combat.player_hp
 	var played_before: Array[PlayedCard] = combat.played.duplicate()
 	var report := combat.resolve_turn()
@@ -1016,11 +1074,22 @@ func _resolve() -> void:
 		v.queue_redraw()
 	_player_hp.set_values(shown_player_hp, combat.player_max_hp, 0)
 
-	# 1. Both bench scopes fire their waves into the merged panel.
+	# 0. Wind-up: the (overloaded) transmitter shakes harder and harder.
+	var wind := 0.12 + 0.18 * power
+	var tc := create_tween()
+	tc.tween_property(self, "_charge", power, wind).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	await tc.finished
+
+	# 1. Both bench scopes fire their waves into the merged panel; the
+	#    transmitter kicks back and its wave streaks up into the main scope.
+	_charge = 0.0
+	_tx_dev.shake(0.6 + power)
+	app.impact(_tx_dev.get_global_rect().get_center(), 0.15 + 0.25 * power)
 	_merged.result = r
 	_merged.arrive = 0.0
 	_merged.reveal = 0.0
 	_merged.merge = 0.0
+	_launch_streaks(r, power)
 	var tw := create_tween().set_parallel(true)
 	tw.tween_property(_enemy_screen, "launch", 1.0, LAUNCH_SECONDS).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tw.tween_property(_player_screen, "launch", 1.0, LAUNCH_SECONDS).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
@@ -1030,7 +1099,10 @@ func _resolve() -> void:
 	# 2. Impact: soft rings where waves cancel, a smooth screen ripple, and
 	#    the result bars / numbers pop in left to right.
 	_merged.impact = 1.0
-	app.impact(_scope_dev.flat_to_screen(_merged.position + _merged.size * 0.5), 0.35 + 0.04 * r.perfect_cancels)
+	app.impact(_scope_dev.flat_to_screen(_merged.position + _merged.size * 0.5),
+		0.4 + 0.5 * power + 0.04 * r.perfect_cancels)
+	_scope_dev.shake(0.5 + 1.2 * power)
+	_collision_bursts(r, power)
 	var tw2 := create_tween().set_parallel(true)
 	tw2.tween_property(_merged, "impact", 0.0, IMPACT_SECONDS)
 	tw2.tween_property(_merged, "reveal", 1.0, IMPACT_SECONDS)
@@ -1084,6 +1156,35 @@ func _resolve() -> void:
 	refresh()
 	if combat.outcome != Combat.Outcome.ONGOING:
 		_show_overlay()
+
+
+## Player wave streaks from the transmitter screen up into the main scope,
+## and the noise streaks down from the receiver, cell by cell.
+func _launch_streaks(r: TrackResult, power: float) -> void:
+	var cyan := Assets.color("player_wave")
+	var amber := Assets.color("enemy_ch1")
+	for t in r.player.size():
+		var hit := _scope_dev.flat_to_screen(_merged.position + _merged.cell_center_local(t))
+		if r.player[t] != 0:
+			_fx.shoot(cell_screen_point(t), hit, cyan, t * 0.012, LAUNCH_SECONDS, 3.0 + absf(r.player[t]) * (0.5 + 0.5 * power), 0.0)
+		if r.enemy[t] != 0:
+			var top := _scope_dev.flat_to_screen(_enemy_tube.position + Vector2(_enemy_screen.grid_x0 + (t + 0.5) * _enemy_screen.grid_w / r.enemy.size(), _enemy_tube.size.y * 0.5))
+			_fx.shoot(top, hit, amber, t * 0.012, LAUNCH_SECONDS, 3.0 + absf(r.enemy[t]) * 0.5, 0.0)
+
+
+## Collision particles in every cell where the waves met, coloured by result
+## (blue = your damage, red = damage to you, white = cancelled).
+func _collision_bursts(r: TrackResult, power: float) -> void:
+	for t in r.net.size():
+		var mass := absi(r.enemy[t]) + absi(r.player[t])
+		if mass == 0:
+			continue
+		var col := Assets.color("damage_to_enemy")
+		match r.outcome[t]:
+			TrackResult.Outcome.PLAYER_HIT: col = Assets.color("damage_to_player")
+			TrackResult.Outcome.CANCELLED: col = Color(1, 0.97, 0.9)
+		var p := _scope_dev.flat_to_screen(_merged.position + _merged.cell_center_local(t))
+		_fx.burst(p, col, int(3 + mass * (0.6 + power)), 0.5 + 0.5 * power)
 
 
 ## Esc: a small bakelite panel to continue or leave the fight.

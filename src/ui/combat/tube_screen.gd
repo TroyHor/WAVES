@@ -1,7 +1,7 @@
 class_name TubeScreen
 extends Control
 ## A small CRT tube: renders `content` in a SubViewport and shows it through
-## tube.gdshader (mild barrel, scanlines, glow, rounded glass). Used for the
+## tube.gdshader (flat trace, scanlines, glow, rim shading, rounded glass). Used for the
 ## receiver (amber) and transmitter (cyan-white) screens. The content's grid
 ## coordinates are local to this control, same as without the tube.
 
@@ -9,7 +9,7 @@ const TUBE_SHADER := preload("res://src/ui/crt/tube.gdshader")
 
 var content: Control
 var glass_tint := Color(0.02, 0.03, 0.03)
-var curvature := 0.035
+var curvature := 0.0
 var _vp: SubViewport
 var _tex: TextureRect
 var _mat: ShaderMaterial

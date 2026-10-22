@@ -1,10 +1,16 @@
 shader_type canvas_item;
 // CRT tube inside a bench oscilloscope. Applied to the TextureRect that shows a
-// scope's SubViewport. The barrel is normalised by (1 + curvature) so the
-// centre line's ends and middle stay where they were: grid columns keep
-// lining up with the merged panel, while the corners bulge and round off.
+// scope's SubViewport. The trace is drawn flat (an oscilloscope's phosphor is
+// read head-on, and the grid columns must line up across instruments); depth
+// comes from the glass instead: the hood in front of the tube shades its rim
+// (most along the top, since the operator looks down at it) and the bulging
+// glass catches a curved highlight. `curvature` (normalised barrel) is kept
+// for experiments but defaults to 0.
 
-uniform float curvature = 0.05;
+uniform float curvature = 0.0;
+// Rim shading from the hood, in pixels (top, sides, bottom).
+uniform vec3 rim_px = vec3(26.0, 14.0, 8.0);
+uniform float rim_strength = 0.6;
 uniform float scanline_strength = 0.16;
 uniform float glow = 0.5;
 uniform float vignette = 0.35;
@@ -50,11 +56,19 @@ void fragment() {
 		vec2 e = uv * (1.0 - uv);
 		col *= pow(clamp(e.x * e.y * 30.0, 0.0, 1.0), vignette);
 		col = mix(glass_tint.rgb, col, smoothstep(0.0, 0.012, min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y))));
-		// Glass: a soft diagonal sheen across the upper-left and a thin bright
-		// line just under the top edge where the curved glass catches light.
-		float sheen = smoothstep(0.55, 0.0, UV.x * 0.35 + UV.y) * reflection;
-		float lip = smoothstep(0.06, 0.0, abs(UV.y - 0.04)) * reflection * 0.8;
-		col += vec3(sheen + lip);
+		// Hood shading: the rim recedes under the bezel (stronger at the top).
+		vec2 p = UV * tube_size;
+		float top = 1.0 - smoothstep(0.0, rim_px.x, p.y);
+		float side = 1.0 - smoothstep(0.0, rim_px.y, min(p.x, tube_size.x - p.x));
+		float bottom = 1.0 - smoothstep(0.0, rim_px.z, tube_size.y - p.y);
+		col *= 1.0 - rim_strength * max(max(top, side * 0.8), bottom * 0.6);
+		// Bulging glass: a soft sheen across the upper-left and a highlight
+		// band that bows down toward the corners, as on a convex face plate.
+		float sheen = smoothstep(0.55, 0.0, UV.x * 0.35 + UV.y) * reflection * 0.7;
+		float bx = UV.x - 0.5;
+		float band_y = 0.1 + 0.5 * bx * bx;
+		float band = smoothstep(0.05, 0.0, abs(UV.y - band_y)) * (1.0 - smoothstep(0.3, 0.5, abs(bx)));
+		col += vec3(sheen + band * reflection * 0.9);
 		COLOR = vec4(col, 1.0);
 	}
 	COLOR = mix(glass_tint, COLOR, corner_mask(UV));

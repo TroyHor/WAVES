@@ -24,7 +24,7 @@ func _draw() -> void:
 	var n := maxi(max_energy, 1)
 	var used := clampi(max_energy - energy, 0, n)
 	var step := size.y / n
-	var r := minf(step * 0.42, size.x * 0.36)
+	var r := minf(step * 0.34, size.x * 0.36)
 	var lamp := Assets.color("energy")
 	var full := used >= n
 	for i in n:

@@ -63,7 +63,8 @@ const SCREEN_FX := {
 
 ## CRT tube inside each bench oscilloscope (src/ui/crt/tube.gdshader).
 const TUBE := {
-	"curvature": 0.07,
+	# Flat trace; depth comes from rim shading and glass highlights (tube.gdshader).
+	"curvature": 0.0,
 	"reflection": 0.08,
 	"corner_radius": 22.0,
 	"scanline_strength": 0.16,

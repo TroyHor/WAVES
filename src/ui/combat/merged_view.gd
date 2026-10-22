@@ -61,6 +61,11 @@ func cell_at(local: Vector2) -> int:
 	return floori((local.x - grid_x0) / cell_width())
 
 
+## Local position of cell t on the tube's centre line (collision point).
+func cell_center_local(t: int) -> Vector2:
+	return scope.tube_rect().position + Vector2(graph.cell_center_x(t), graph.graph_rect().get_center().y)
+
+
 ## Local position of a cell's damage number in the tube (projectile origin).
 func readout_local(t: int) -> Vector2:
 	return scope.tube_rect().position + graph.readout_point(t)

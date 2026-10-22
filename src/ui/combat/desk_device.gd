@@ -62,6 +62,15 @@ func _ready() -> void:
 	add_child(_tex)
 
 
+## Changes the face's flat size (e.g. a face whose width follows the layout).
+## Call before set_quad.
+func set_flat_size(v: Vector2) -> void:
+	flat_size = v
+	content.size = v
+	if _vp != null:
+		_vp.size = Vector2i(v)
+
+
 ## Places the device: `corners` are TL, TR, BR, BL in the parent's coordinates.
 func set_quad(corners: PackedVector2Array) -> void:
 	var lo := corners[0]
